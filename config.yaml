@@ -1,0 +1,209 @@
+# ============================================================
+#  Credential Research Toolkit - Configuration
+#  Secrets may also be supplied via environment variables
+#  (they override the values here). Env var names are shown.
+# ============================================================
+
+app:
+  name: "Credential Research Toolkit"
+  version: "1.4.0"
+  data_dir: "data"
+  reports_dir: "data/reports"      # raw findings / engine output
+  papers_dir: "data/papers"        # finalized research papers (curated)
+  cache_dir: "data/cache"
+
+# --- HTTP behaviour ---
+http:
+  timeout: 20            # seconds per request
+  retries: 3
+  user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ResearchTool/1.0"
+  verify_ssl: true
+  # Optional outbound proxy, e.g. "socks5h://127.0.0.1:9050" for Tor
+  proxy: null
+  # Rotate realistic browser User-Agents (reduces bot-blocking on
+  # Baidu / Naver / Yandex and other regional indices).
+  user_agent_rotation: true
+  # Opt-in: render JS-heavy / bot-challenged pages with a headless browser.
+  # Requires Playwright (pip install playwright && playwright install chromium).
+  render_js: false
+  # Proxy pool rotated through per-request. A proxy that gets blocked is
+  # retired, so the next attempt uses a fresh exit IP - the practical bypass
+  # for IP-based captchas (e.g. Baidu's wappass). Example entries:
+  #   - "socks5h://127.0.0.1:9050"
+  #   - "http://user:pass@proxy.example:8080"
+  proxy_pool: []
+  # Harvest a fresh pool of public proxies from well-known GitHub lists.
+  # Best-effort: public proxies are unreliable, so this is opt-in.
+  proxy_pool_auto: false
+  # Local Tor control port for circuit renewal (SIGNAL NEWNYM) - rotates the
+  # Tor exit IP between attempts. Requires the optional 'stem' package and
+  # "ControlPort 9051" in torrc.
+  tor_control_port: null
+  tor_control_password: null
+
+# --- Caching ---
+cache:
+  enabled: true
+  ttl_seconds: 3600      # cache lifetime for API/web responses
+  # "sqlite" (persistent) or "memory" (nothing touches disk).
+  backend: "sqlite"
+  # Encrypt cached values at rest. Needs RESEARCH_ENCRYPTION_KEY to be set.
+  encrypt: false
+
+# --- Logging ---
+logging:
+  level: "INFO"          # DEBUG | INFO | WARNING | ERROR
+  log_file: "data/research.log"
+  rotation: "10 MB"
+  retention: "7 days"
+  # Mask emails / phones / secrets / URL queries before a record is emitted.
+  redact_pii: true
+
+# --- API credentials (leave null to disable a given engine) ---
+api_keys:
+  hibp: null             # env: RESEARCH_HIBP_KEY    (HaveIBeenPwned)
+  shodan: null           # env: RESEARCH_SHODAN_KEY  (Shodan)
+  serpapi: null          # env: RESEARCH_SERPAPI_KEY (SerpAPI / Google)
+  hunter: null           # env: RESEARCH_HUNTER_KEY  (Hunter.io email finder)
+  censys_id: null        # env: RESEARCH_CENSYS_ID
+  censys_secret: null    # env: RESEARCH_CENSYS_SECRET
+
+# --- Engines: enable/disable individual modules ---
+engines:
+  search: true
+  whois: true
+  domain_intel: true
+  social: true
+  credential_check: true
+  academic: true
+  company: true
+  web_scraper: true
+  openalex: true
+  orcid: true
+  npi: true
+  dark: true
+  # --- cross-border / restricted-region capabilities ---
+  regional_search: true    # Baidu / Naver / Yandex / SearXNG
+  regional_social: true    # VK / Weibo / Zhihu / LINE / ...
+  sanctions: true          # OFAC / UN / EU / UK sanctions screening
+
+# --- Internationalisation / cross-border research ---
+i18n:
+  enabled: true
+  # Languages a Latin target is expanded into when searching regional indices.
+  target_languages: ["ko", "zh-CN", "ru", "ar", "fa"]
+  # auto | libretranslate | mymemory | deepl | none
+  translation_backend: "auto"
+  # Self-hosted LibreTranslate endpoint (env: RESEARCH_LIBRETRANSLATE_URL)
+  libretranslate_url: null
+  # DeepL key for higher-quality translation (env: RESEARCH_DEEPL_KEY)
+  deepl_key: null
+
+# --- Sanctions / restricted-entity screening ---
+sanctions:
+  cache_ttl_hours: 24
+  sources:
+    ofac: true             # US Treasury SDN list
+    un: true               # UN Security Council consolidated list
+    eu: true               # EU financial sanctions list
+    uk: true               # UK OFSI consolidated list
+  # OpenSanctions aggregated API: 100+ lists + PEPs in one call
+  # (richest single source for DPRK / Russia / Iran coverage).
+  # Requires a FREE API key - get one at https://www.opensanctions.org/api/
+  # (env: RESEARCH_OPENSANCTIONS_KEY). Skipped cleanly when no key is set.
+  opensanctions: true
+  opensanctions_key: null
+  # Key-free fallback: download OpenSanctions bulk datasets directly (tens of
+  # MB, cached for the TTL). Used only when no API key is configured. Opt-in.
+  opensanctions_bulk: false
+  # Soundex/Metaphone name matching for transliteration variants
+  # (needs the optional 'jellyfish' package; falls back silently without it).
+  phonetic: true
+
+# --- Regional search engines ---
+regional_search:
+  # Override the built-in SearXNG instance list (empty = use defaults).
+  searx_instances: []
+
+# --- Dark web / Tor ---
+darkweb:
+  # Public, clearnet index of known .onion services (no key, no Tor needed).
+  index_url: "https://ahmia.fi/onions/"
+  # Onion search engines queried over Tor ({query} is substituted).
+  search_endpoints:
+    - "http://3bbad7fauom4d6sgppalyqddsqbf5u5p56b5k5uk2zxsy3d6ey2jobad.onion/search?q={query}&page=1"               # OnionLand
+    - "http://tor66sewebgixwhcqfnp5inzp5x5uohhdy3kvtnyfxc2e5mxiuh34iid.onion/search?q={query}&sorttype=rel&page=1" # Tor66
+    - "http://phobosxilamwcg75xt22id7aywkzol6q6rfl2flipcqoc4e4ahima5id.onion/search?query={query}&p=1"             # Phobos
+    - "http://haystak5njsmn2hqkewecpaxetahtwhsbsa64jom2k22z5afxhnpxfid.onion/?q={query}&offset=0"                 # Haystack
+    - "http://tordex7iie7z2wcg.onion/search?query={query}&page=1"                                                 # Tordex
+    - "http://no6m4wzdexe3auiupv2zwif7rm6qwxcyhslkcnzisxgeiw6pvjsgafad.onion/search.php?term={query}"              # Torgle
+    - "http://multivacigqzqqon.onion/?q={query}&page=1"                                                           # Multivac
+    - "http://deeplinkdeatbml7.onion/?search={query}&type=verified"                                               # DeepLink
+  # Local Tor SOCKS proxies, auto-detected when none is configured.
+  # 9050 = Tor daemon, 9150 = Tor Browser.
+  tor_proxy: "socks5h://127.0.0.1:9050"
+  tor_alt_proxies:
+    - "socks5h://127.0.0.1:9150"
+
+# --- Reporting defaults ---
+reporting:
+  default_format: "markdown"   # markdown | pdf | excel | json
+  include_raw_data: true
+  # Encrypt report files at rest (writes <name>.<ext>.enc). Needs
+  # RESEARCH_ENCRYPTION_KEY to be set.
+  encrypt: false
+
+# --- Finalized-paper library (data/papers) ---
+# Reports in data/reports/ hold what the engines found. Finalized papers go
+# to data/papers/ following the rules in data/papers/ORGANISATION.md.
+papers:
+  author: "None-Bias Research Agent"
+  default_status: "final"      # draft | final (used when --status is omitted)
+  formats: ["markdown"]        # default output set: markdown | pdf | json
+  include_raw: false           # append the raw-findings appendix by default
+
+# --- GitHub hosting (opt-in) ---
+# Push reports/papers to a GitHub repo and serve them through GitHub Pages.
+# Nothing is uploaded until you run:  python -m research_tool github host
+# A token is required: export RESEARCH_GITHUB_TOKEN (or reuse the `gh` CLI's
+# stored login). Never commit a real token into this file.
+github:
+  enabled: true              # this checkout is connected to GitHub
+  owner: "Cookieoil"         # env: RESEARCH_GITHUB_OWNER (blank = token's user)
+  repo: "research-tool"      # env: RESEARCH_GITHUB_REPO
+  branch: "main"             # env: RESEARCH_GITHUB_BRANCH
+  token: null                # env: RESEARCH_GITHUB_TOKEN (never commit a token)
+  remote: "origin"           # git remote name to create/update
+  site_dir: "docs"           # folder served by GitHub Pages
+  host_reports: true         # include data/reports/ in a bare `github host`
+  host_papers: true          # include data/papers/ in a bare `github host`
+  pages: true                # enable/refresh GitHub Pages when hosting
+  visibility: "public"       # public | private (only used when creating repo)
+  description: "OSINT & credential-verification research reports (Credential Research Toolkit)"
+  commit_message: "Publish research reports to GitHub Pages"
+
+# --- Privacy / data protection ---
+privacy:
+  # Keep nothing on disk: in-memory cache, no report files, no log file.
+  # Can also be forced per-run with the global --ephemeral flag or by setting
+  # RESEARCH_EPHEMERAL=1.
+  ephemeral: false
+  # Age (hours) after which tool-owned data is eligible for the `purge`
+  # command. Set to 0 to disable the retention window (purge only on demand).
+  retention_hours: 72
+  # Overwrite passes applied before a file is unlinked by `purge`.
+  # (Best-effort: full-disk encryption is the stronger control.)
+  secure_delete_passes: 1
+
+# --- Ethics / authorisation guardrails ---
+ethics:
+  # Require the caller to pass --i-have-authorization (or set
+  # RESEARCH_AUTHORIZED=1) before any engine runs.
+  require_attestation: false
+  # Restrict domain / URL targets to an authorised scope (empty = no limit).
+  # e.g. ["example.com", "acme.org"]
+  allowed_domains: []
+  # Append a PII-minimised record of tool actions to data/audit.log.
+  audit_log: false
+  # Throttle engine runs to at most N per minute (0 = unlimited).
+  rate_limit_per_minute: 0

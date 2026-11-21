@@ -1,0 +1,30 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Tool output & secrets
+data/cache/
+data/*.log
+data/audit.log
+data/reports/*.pdf
+data/reports/*.xlsx
+data/reports/*.enc
+data/**/*.enc
+# Finalized-paper library: keep INDEX.md / INDEX.json / *.meta.json / *.md
+# tracked, but not distributable binaries or encrypted copies.
+data/papers/**/*.pdf
+data/papers/**/*.xlsx
+data/papers/**/*.enc
+.env
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/

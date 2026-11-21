@@ -1,0 +1,71 @@
+# ============================================================
+#  Credential Research Toolkit - Python Dependencies
+#  Install with:  pip install -r requirements.txt
+# ============================================================
+
+# --- HTTP & Web ---
+requests>=2.32.0
+httpx>=0.27.0
+beautifulsoup4>=4.12.0
+lxml>=5.3.0
+
+# --- Data & Export ---
+pandas>=2.2.0
+openpyxl>=3.1.0
+python-docx>=1.1.0
+reportlab>=4.2.0
+PyPDF2>=3.0.0
+
+# --- Validation & Models ---
+pydantic>=2.10.0
+validators>=0.34.0
+phonenumbers>=8.13.0
+
+# --- CLI & UI ---
+typer>=0.15.0
+rich>=13.0.0
+loguru>=0.7.0
+
+# --- Domain & Network ---
+python-whois>=0.9.0
+dnspython>=2.7.0
+tldextract>=5.1.0
+
+# --- Search (DuckDuckGo; no API key required) ---
+ddgs>=9.0.0
+
+# --- Tor / dark web (SOCKS proxy support for requests) ---
+PySocks>=1.7.1
+
+# --- Encryption at rest (privacy hardening) ---
+# Provides AES/Fernet for the response cache (cache.encrypt) and exported
+# reports (reporting.encrypt). Without it the toolkit falls back to a
+# stdlib encrypt-then-MAC construction, so this is recommended but optional.
+cryptography>=42.0.0
+
+# --- Utilities ---
+PyYAML>=6.0.0
+cachetools>=5.5.0
+aiofiles>=24.1.0
+
+# --- Cross-border / internationalisation ---
+# Optional: improves language detection in utils/i18n.py. Without it the
+# toolkit falls back to Unicode-script heuristics (no install needed).
+# langdetect>=1.0.9
+# Optional: Soundex/Metaphone name matching in the sanctions engine (catches
+# transliteration variants). Without it, string-similarity matching is used.
+# jellyfish>=1.0.0
+
+# --- Optional / Best-effort (may not install on all platforms) ---
+# duckduckgo-search>=7.0.0   (legacy alias of ``ddgs``, now a shim)
+# shodan>=1.31.0
+# holehe>=1.64.0
+# socialscan>=2.1.0
+# waybackpy>=3.0.0
+# Playwright renders JS-heavy / bot-challenged pages when
+# ``http.render_js: true``. After installing, run: playwright install chromium
+# playwright>=1.49.0
+# selenium>=4.27.0
+# stem talks to a local Tor control port for circuit renewal (SIGNAL NEWNYM)
+# when ``http.tor_control_port`` is set.
+# stem>=1.8.2
