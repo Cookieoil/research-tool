@@ -18,6 +18,13 @@ from ..models.report import Finding, ResearchReport
 
 _FORMAT_BY_SUFFIX = {".md": "markdown", ".pdf": "pdf", ".json": "json"}
 
+# Optional ``report.metadata`` keys. They let desk/literature research replace
+# the OSINT-specific boilerplate (credentials, identity matches, engine runs)
+# with method-appropriate narrative while keeping the standard paper layout.
+META_METHODOLOGY = "methodology"
+META_LIMITATIONS = "limitations"
+META_RISK = "risk_explanation"
+
 
 def source_urls(report: ResearchReport) -> list[str]:
     """Unique source URLs in first-seen order (the paper's source register)."""
@@ -39,6 +46,24 @@ def _confidence_label(value: float) -> str:
 def _cell(text: object) -> str:
     """Make a value safe inside a Markdown table cell."""
     return str(text).replace("|", "\\|").replace("\n", " ").strip()
+
+
+def _meta_text(report: ResearchReport, key: str) -> str | None:
+    """Return a non-empty string from ``report.metadata[key]``, else ``None``."""
+    value = (report.metadata or {}).get(key)
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
+
+
+def _meta_list(report: ResearchReport, key: str) -> list[str]:
+    """Return ``report.metadata[key]`` as a list of non-empty strings."""
+    value = (report.metadata or {}).get(key)
+    if isinstance(value, str):
+        value = [value]
+    if not isinstance(value, (list, tuple)):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
 
 
 def _default_abstract(report: ResearchReport) -> str:
@@ -122,23 +147,29 @@ class PaperReporter:
             "",
             abstract,
             "",
-            "## 1. Scope and methodology",
-            "",
-            f"This paper consolidates the findings recorded for "
-            f"**{report.target}** (target kind: `{report.target_kind}`) by the "
-            f"Credential Research Toolkit. "
-            f"{len(report.engines_run)} engine(s) ran: "
-            f"{', '.join(f'`{e}`' for e in report.engines_run) or 'none'}. "
-            f"{len(report.findings)} finding(s) were normalised from public "
-            f"sources and scored.",
-            "",
-            "Every finding carries a 0–1 confidence value. A statement is "
-            "described as *corroborated by public sources* only where a "
-            "source is listed; it is *verified* only where an authoritative "
-            "registry is cited. Engine output is reproduced without "
-            "embellishment.",
-            "",
         ]
+
+        methodology = _meta_text(report, META_METHODOLOGY)
+        lines += ["## 1. Scope and methodology", ""]
+        if methodology:
+            lines += [methodology, ""]
+        else:
+            lines += [
+                f"This paper consolidates the findings recorded for "
+                f"**{report.target}** (target kind: `{report.target_kind}`) by the "
+                f"Credential Research Toolkit. "
+                f"{len(report.engines_run)} engine(s) ran: "
+                f"{', '.join(f'`{e}`' for e in report.engines_run) or 'none'}. "
+                f"{len(report.findings)} finding(s) were normalised from public "
+                f"sources and scored.",
+                "",
+                "Every finding carries a 0–1 confidence value. A statement is "
+                "described as *corroborated by public sources* only where a "
+                "source is listed; it is *verified* only where an authoritative "
+                "registry is cited. Engine output is reproduced without "
+                "embellishment.",
+                "",
+            ]
 
         if report.errors:
             lines += ["**Collection notes (engine errors during the run):**", ""]
@@ -176,12 +207,12 @@ class PaperReporter:
                 lines.append("")
                 lines += self._markdown_details(items)
 
+        risk_note = _meta_text(report, META_RISK) or _risk_explanation(report)
         lines += [
             "## 3. Risk assessment",
             "",
             f"**Risk score: {report.risk_score}/100 "
-            f"({RiskScorer.label(report.risk_score)}).** "
-            f"{_risk_explanation(report)}",
+            f"({RiskScorer.label(report.risk_score)}).** {risk_note}",
             "",
         ]
         by_engine: dict[str, int] = {}
@@ -207,23 +238,35 @@ class PaperReporter:
         else:
             lines += ["_No source URLs were recorded with the findings._", ""]
 
-        lines += [
-            "## 5. Limitations and confidence",
-            "",
-            "- Findings are drawn from public sources and carry only the "
-            "confidence reported by each engine.",
-            "- A credential is *corroborated by public sources*; it is not "
-            "*verified* unless an authoritative registry is cited.",
-            "- Name matches (including sanctions screening) are leads for "
-            "review, not proof of identity.",
-            "- Absence of a finding is not proof of absence; engines that "
-            "were skipped or blocked are noted in the findings.",
-            "- Public data changes. Re-run the engines before relying on a "
-            "paper that is no longer current.",
-            "- Non-English source material is translated into English; "
-            "original wording is kept only as a clearly marked secondary "
-            "reference.",
-        ]
+        custom_limitations = _meta_list(report, META_LIMITATIONS)
+        lines += ["## 5. Limitations and confidence", ""]
+        if custom_limitations:
+            lines += [f"- {item}" for item in custom_limitations]
+            lines += [
+                "- Absence of a finding is not proof of absence; sources "
+                "that were skipped or blocked are noted in the findings.",
+                "- Public data changes. Re-verify sources before relying on "
+                "a paper that is no longer current.",
+                "- Non-English source material is translated into English; "
+                "original wording is kept only as a clearly marked secondary "
+                "reference.",
+            ]
+        else:
+            lines += [
+                "- Findings are drawn from public sources and carry only the "
+                "confidence reported by each engine.",
+                "- A credential is *corroborated by public sources*; it is not "
+                "*verified* unless an authoritative registry is cited.",
+                "- Name matches (including sanctions screening) are leads for "
+                "review, not proof of identity.",
+                "- Absence of a finding is not proof of absence; engines that "
+                "were skipped or blocked are noted in the findings.",
+                "- Public data changes. Re-run the engines before relying on a "
+                "paper that is no longer current.",
+                "- Non-English source material is translated into English; "
+                "original wording is kept only as a clearly marked secondary "
+                "reference.",
+            ]
         if report.errors:
             lines.append(f"- {len(report.errors)} engine error(s) occurred "
                          "during collection (listed in §1).")
@@ -317,6 +360,25 @@ class PaperReporter:
         kind_label = ("FINALIZED RESEARCH PAPER" if meta.status == "final"
                       else "RESEARCH PAPER (DRAFT)")
         abstract = meta.abstract or _default_abstract(report)
+        methodology = _meta_text(report, META_METHODOLOGY) or (
+            f"This paper consolidates {len(report.findings)} "
+            f"finding(s) recorded for {report.target} by "
+            f"{len(report.engines_run)} engine(s): "
+            f"{', '.join(report.engines_run) or 'none'}. Every finding "
+            "carries a 0-1 confidence value; statements are corroborated "
+            "by public sources where a source is listed, and verified only "
+            "where an authoritative registry is cited.")
+        risk_note = _meta_text(report, META_RISK) or _risk_explanation(report)
+        limitations_text = (
+            " ".join(_meta_list(report, META_LIMITATIONS))
+            or "Findings are drawn from public sources and carry only the "
+               "engine-reported confidence. Credentials are corroborated by "
+               "public sources, not verified, unless a registry is cited. "
+               "Name matches are leads, not identity proof. Absence of a "
+               "finding is not proof of absence. Public data changes; re-run "
+               "the engines before relying on a paper that is no longer "
+               "current."
+        )
 
         story = [
             Paragraph(_esc(meta.title), styles["Title"]),
@@ -350,18 +412,7 @@ class PaperReporter:
             Paragraph(_esc(abstract), styles["BodyText"]),
             Spacer(1, 0.4 * cm),
             Paragraph("1. Scope and methodology", styles["Heading1"]),
-            Paragraph(
-                _esc(
-                    f"This paper consolidates {len(report.findings)} "
-                    f"finding(s) recorded for {report.target} by "
-                    f"{len(report.engines_run)} engine(s): "
-                    f"{', '.join(report.engines_run) or 'none'}. Every "
-                    "finding carries a 0-1 confidence value; statements are "
-                    "corroborated by public sources where a source is "
-                    "listed, and verified only where an authoritative "
-                    "registry is cited."),
-                styles["BodyText"],
-            ),
+            Paragraph(_esc(methodology), styles["BodyText"]),
             Spacer(1, 0.4 * cm),
             Paragraph("2. Findings", styles["Heading1"]),
         ]
@@ -390,7 +441,7 @@ class PaperReporter:
             Paragraph(
                 _esc(f"Risk score: {report.risk_score}/100 "
                      f"({RiskScorer.label(report.risk_score)}). "
-                     f"{_risk_explanation(report)}"),
+                     f"{risk_note}"),
                 styles["BodyText"],
             ),
             Spacer(1, 0.4 * cm),
@@ -407,16 +458,7 @@ class PaperReporter:
         story += [
             Spacer(1, 0.4 * cm),
             Paragraph("5. Limitations and confidence", styles["Heading1"]),
-            Paragraph(
-                _esc("Findings are drawn from public sources and carry only "
-                     "the engine-reported confidence. Credentials are "
-                     "corroborated by public sources, not verified, unless a "
-                     "registry is cited. Name matches are leads, not "
-                     "identity proof. Absence of a finding is not proof of "
-                     "absence. Public data changes; re-run the engines "
-                     "before relying on a paper that is no longer current."),
-                styles["BodyText"],
-            ),
+            Paragraph(_esc(limitations_text), styles["BodyText"]),
             Spacer(1, 0.4 * cm),
         ]
         if include_raw:

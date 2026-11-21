@@ -192,7 +192,7 @@ class PaperLibrary:
             topic=shelf,
             status=status,
             author=author or self.author,
-            abstract=abstract,
+            abstract=abstract or report.summary,
             tags=list(tags or []),
             created_at=stamp,
             risk_score=report.risk_score,

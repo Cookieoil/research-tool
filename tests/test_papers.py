@@ -93,6 +93,7 @@ def test_publish_layout_record_and_index() -> None:
         assert meta.paper_id == "jane-doe_2026-11-21"
         assert meta.topic == "people"
         assert meta.status == "final"
+        assert meta.abstract == "Jane Doe appears in public academic and web sources."
         assert meta.files == ["people/jane-doe_2026-11-21.md",
                               "people/jane-doe_2026-11-21.json"]
 
@@ -115,6 +116,20 @@ def test_publish_layout_record_and_index() -> None:
         payload = json.loads((Path(tmp) / INDEX_JSON).read_text(encoding="utf-8"))
         assert payload["active"][0]["paper_id"] == meta.paper_id
         assert lib.root == Path(tmp)
+
+
+def test_desk_research_metadata_overrides_osint_boilerplate() -> None:
+    report = _report()
+    report.metadata = {
+        "methodology": "Desk research across peer-reviewed and industry sources.",
+        "risk_explanation": "Not applicable: no target-identity risk is assessed.",
+        "limitations": ["Company-reported demographics are not peer-reviewed."],
+    }
+    text = PaperReporter().render_markdown(report, _meta(report))
+    assert "Desk research across peer-reviewed" in text
+    assert "Not applicable: no target-identity risk" in text
+    assert "Company-reported demographics are not peer-reviewed." in text
+    assert "Name matches (including sanctions screening)" not in text
 
 
 def test_publish_versions_and_find() -> None:
