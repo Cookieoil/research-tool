@@ -3,19 +3,19 @@
 > **Auto-generated — do not edit by hand.** Rebuilt by `publish`, `archive-paper` and `python -m research_tool papers --rebuild-index`.
 > Organisation rules: [ORGANISATION.md](ORGANISATION.md) · Raw findings remain in `data/reports/`.
 
-_Last rebuilt: 2026-11-21 08:43 UTC · **0 active** · **0 archived**_
+_Last rebuilt: 2026-11-21 19:18 UTC · **1 active** · **1 archived**_
 
 ## Active papers
 
-_None yet. Finalize one with:_
-
-```powershell
-python -m research_tool publish "<target>" --format markdown
-```
+| Paper ID | Title | Topic | Status | Published | Risk | Findings | Files |
+|---|---|---|---|---|---:|---:|---|
+| `female-oriented-gacha-market_2026-11-21_v2` | The Female-Oriented Gacha Market: Latent Demand and Failure Modes | `gacha` | final | 2026-11-21 | 0/100 (NONE) | 46 | [md](gacha/female-oriented-gacha-market_2026-11-21_v2.md) · [pdf](gacha/female-oriented-gacha-market_2026-11-21_v2.pdf) · [json](gacha/female-oriented-gacha-market_2026-11-21_v2.json) |
 
 ## Archived papers
 
-_None._
+| Paper ID | Title | Topic | Status | Published | Risk | Findings | Files |
+|---|---|---|---|---|---:|---:|---|
+| `female-oriented-gacha-market_2026-11-21` | The Female-Oriented Gacha Market: Latent Demand and Failure Modes | `gacha` | archived | 2026-11-21 | 0/100 (NONE) | 46 | [md](_archive/gacha/female-oriented-gacha-market_2026-11-21.md) · [pdf](_archive/gacha/female-oriented-gacha-market_2026-11-21.pdf) · [json](_archive/gacha/female-oriented-gacha-market_2026-11-21.json) |
 
 ## Layout
 
