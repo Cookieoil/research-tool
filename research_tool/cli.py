@@ -886,8 +886,8 @@ def host(
     if dry_run:
         console.print("[dim]Dry run: nothing uploaded. Review the site folder, "
                       "then re-run without --dry-run.[/dim]")
-    else:
-        console.print("[dim]Files were published to the branch directly - run "
+    elif result.get("method") == "api":
+        console.print("[dim]The site was committed through the GitHub API - run "
                       "`git pull` before your next local commit.[/dim]")
 
 

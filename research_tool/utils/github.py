@@ -478,11 +478,12 @@ class GitHubClient:
         payload: dict[str, Any] = {
             "name": self.repo,
             "private": bool(private),
-            "description": description or None,
             "has_issues": True,
             "has_wiki": False,
             "auto_init": False,
         }
+        if description:
+            payload["description"] = description
         if homepage:
             payload["homepage"] = homepage
         if self.owner.lower() != self.whoami().lower():
