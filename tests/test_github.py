@@ -221,6 +221,96 @@ def test_index_builders() -> None:
     assert "| report |" in md and "papers/people/jane.md" in md
 
 
+def test_index_groups_into_sections_and_merges_formats() -> None:
+    entries = [
+        {"kind": "report", "name": "report_x.json", "target": "X",
+         "date": "2026-11-21", "risk": 0, "risk_label": "NONE",
+         "findings": 3, "page": "reports/report_x.html",
+         "raw": "reports/report_x.json"},
+        {"kind": "paper", "name": "paper_a.md", "target": "Gacha",
+         "date": "2026-11-21", "risk": 0, "risk_label": "NONE",
+         "findings": 46, "topic": "gacha", "page": "papers/gacha/paper_a.html",
+         "raw": "papers/gacha/paper_a.md"},
+        {"kind": "paper", "name": "paper_a.pdf", "target": "Gacha",
+         "date": "2026-11-21", "risk": 0, "risk_label": "NONE",
+         "findings": 46, "topic": "gacha", "page": None,
+         "raw": "papers/gacha/paper_a.pdf"},
+    ]
+    html = build_index_html(entries, title="Hosted")
+    # One section per topic plus one for reports.
+    assert html.count("<section") == 2
+    assert 'class="tabs"' in html
+    assert "Papers · gacha" in html and "Reports" in html
+    # The three formats of one paper collapse into a single row.
+    assert html.count("<tr>") - 2 == 2
+    assert "papers/gacha/paper_a.pdf" in html
+
+    md = build_index_markdown(entries, title="Hosted")
+    assert "## Papers · gacha (1)" in md
+    assert "## Reports (1)" in md
+    assert "[pdf](papers/gacha/paper_a.pdf)" in md
+
+
+def test_index_dedupes_links_and_renders_missing_values() -> None:
+    # The .md and .json of one paper both render to the same .html page, so the
+    # merged row must not repeat the "read" link. A standalone PDF has no
+    # findings count and must show an em dash instead of "None".
+    entries = [
+        {"kind": "paper", "name": "paper_a.md", "target": "Gacha",
+         "date": "2026-11-21", "risk": 0, "risk_label": "NONE",
+         "findings": 46, "topic": "gacha",
+         "page": "papers/gacha/paper_a.html", "raw": "papers/gacha/paper_a.md"},
+        {"kind": "paper", "name": "paper_a.json", "target": "Gacha",
+         "date": "2026-11-21", "risk": 0, "risk_label": "NONE",
+         "findings": 46, "topic": "gacha",
+         "page": "papers/gacha/paper_a.html", "raw": "papers/gacha/paper_a.json"},
+        {"kind": "report", "name": "standalone.pdf", "target": "",
+         "date": "2026-11-21", "risk": None, "risk_label": None,
+         "findings": None, "topic": "gacha", "page": None,
+         "raw": "reports/standalone.pdf"},
+    ]
+    html = build_index_html(entries, title="Hosted")
+    assert html.count('href="papers/gacha/paper_a.html"') == 1
+    assert "None" not in html
+    # Reports carrying a topic get their own section.
+    assert "Reports · gacha" in html
+
+    md = build_index_markdown(entries, title="Hosted")
+    assert md.count("(papers/gacha/paper_a.html)") == 1
+    assert "None" not in md
+    assert "## Reports · gacha (1)" in md
+
+
+def test_index_puts_source_documents_in_their_own_section() -> None:
+    entries = [
+        {"kind": "paper", "name": "paper_a.md", "target": "Gacha",
+         "date": "2026-11-21", "risk": 0, "risk_label": "NONE",
+         "findings": 46, "topic": "gacha",
+         "page": "papers/gacha/paper_a.html", "raw": "papers/gacha/paper_a.md"},
+        {"kind": "report", "name": "report_gacha.json", "target": "Gacha",
+         "date": "2026-11-21", "risk": 0, "risk_label": "NONE",
+         "findings": 46, "topic": "", "page": "reports/report_gacha.html",
+         "raw": "reports/report_gacha.json"},
+        {"kind": "source", "name": "Vendor_Deck.pdf", "target": "",
+         "date": "2026-11-21", "risk": None, "risk_label": None,
+         "findings": None, "topic": "", "page": None,
+         "raw": "reports/Vendor_Deck.pdf"},
+    ]
+    html = build_index_html(entries, title="Hosted")
+    assert html.count("<section") == 3
+    # Section order: papers, then reports, then sources last.
+    order = [label for label in ("Papers · gacha", "Reports",
+                                 "Source documents")
+             if label in html]
+    assert order == ["Papers · gacha", "Reports", "Source documents"]
+    assert html.index("Papers · gacha") < html.index("Source documents")
+    assert 'class="legend"' in html
+
+    md = build_index_markdown(entries, title="Hosted")
+    assert "## Source documents (1)" in md
+    assert md.index("## Papers") < md.index("## Source documents")
+
+
 # ---------------------------------------------------------------------------
 # Collecting and building the site
 # ---------------------------------------------------------------------------

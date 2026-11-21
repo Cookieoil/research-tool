@@ -259,6 +259,17 @@ header p { margin: 0; color: #adbac7; font-size: .92rem; }
 main { max-width: 62rem; margin: 0 auto; padding: 1.6rem; }
 nav { font-size: .9rem; margin: .4rem 0 1.2rem; }
 nav a { margin-right: .9rem; }
+.tabs { display: flex; flex-wrap: wrap; gap: .35rem; margin: .8rem 0 1.4rem;
+        border-bottom: 1px solid #d0d7de; padding-bottom: .35rem; }
+.tabs a { display: inline-block; padding: .38rem .75rem; font-size: .9rem;
+          border: 1px solid #d0d7de; border-bottom: none; border-radius: 6px 6px 0 0;
+          background: #f6f8fa; color: #0969da; text-decoration: none;
+          margin-right: 0; }
+.tabs a:hover { background: #eaeef2; }
+.legend { color: #57606a; font-size: .88rem; margin: 0 0 .6rem; }
+section { margin: 1.8rem 0; scroll-margin-top: 1rem; }
+section h2 { margin: .2rem 0 .7rem; font-size: 1.15rem; }
+section .count { color: #57606a; font-weight: 400; font-size: .9rem; }
 a { color: #0969da; text-decoration: none; }
 a:hover { text-decoration: underline; }
 h1, h2, h3 { line-height: 1.25; }
@@ -313,39 +324,158 @@ def _sorted_entries(entries: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
                   reverse=True)
 
 
+# Preferred order for the links of a merged row: readable page first, then
+# the lighter formats, then the binary.
+_LINK_PRIORITY = {"read": 0, "md": 1, "json": 2, "pdf": 3}
+
+
+def _anchor(text: str) -> str:
+    """Slugify a section label for use as an in-page anchor."""
+    slug = re.sub(r"[^a-z0-9]+", "-", str(text or "").lower()).strip("-")
+    return slug or "items"
+
+
+def _merge_entries(entries: Iterable[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Collapse the per-file rows of one item into a single row.
+
+    A paper is published as several files (Markdown, JSON, PDF); without this
+    the landing page would repeat the same paper once per format.
+    """
+    merged: dict[tuple[str, str], dict[str, Any]] = {}
+    order: list[tuple[str, str]] = []
+    for entry in entries:
+        name = str(entry.get("name", ""))
+        key = (str(entry.get("kind", "")), Path(name).stem)
+        if key not in merged:
+            merged[key] = {
+                "kind": entry.get("kind", ""),
+                "name": name,
+                "target": entry.get("target", ""),
+                "date": entry.get("date", ""),
+                "risk": entry.get("risk"),
+                "risk_label": entry.get("risk_label"),
+                "findings": entry.get("findings"),
+                "topic": entry.get("topic", "") or "",
+                "links": [],
+            }
+            order.append(key)
+        row = merged[key]
+        for field in ("target", "date", "risk", "risk_label", "findings",
+                      "topic"):
+            if row.get(field) in (None, "") and entry.get(field) not in (None, ""):
+                row[field] = entry[field]
+        suffix = Path(name).suffix.lower().lstrip(".")
+        if entry.get("page"):
+            row["links"].append(("read", str(entry["page"])))
+        if entry.get("raw"):
+            row["links"].append((suffix or "raw", str(entry["raw"])))
+    rows = [merged[key] for key in order]
+    for row in rows:
+        # Several formats of one item render to the same HTML page, so drop
+        # duplicate targets while keeping the first (highest-priority) label.
+        seen: set[str] = set()
+        unique: list[tuple[str, str]] = []
+        for label, href in row["links"]:
+            if href in seen:
+                continue
+            seen.add(href)
+            unique.append((label, href))
+        row["links"] = unique
+        row["links"].sort(key=lambda item: _LINK_PRIORITY.get(item[0], 9))
+        markdown = [href for _label, href in row["links"]
+                    if href.endswith(".md")]
+        if markdown:
+            row["name"] = Path(markdown[0]).name
+    return rows
+
+
+def _sections(
+        rows: list[dict[str, Any]]
+) -> list[tuple[str, str, list[dict[str, Any]]]]:
+    """Group rows into ordered ``(label, anchor, rows)`` sections.
+
+    Order is: finalized papers (one section per topic shelf), then engine
+    reports (one per topic when tagged), then imported source documents. That
+    puts the reviewed output first and the raw inputs last.
+    """
+    def _group(items: list[dict[str, Any]],
+               fallback: str) -> dict[str, list[dict[str, Any]]]:
+        grouped: dict[str, list[dict[str, Any]]] = {}
+        for row in items:
+            topic = str(row.get("topic") or "").strip()
+            key = topic or fallback
+            grouped.setdefault(key, []).append(row)
+        return grouped
+
+    def _by_kind(kind: str) -> list[dict[str, Any]]:
+        return [row for row in rows if row.get("kind") == kind]
+
+    sections: list[tuple[str, str, list[dict[str, Any]]]] = []
+    for topic, items in sorted(_group(_by_kind("paper"), "general").items()):
+        sections.append((f"Papers · {topic}", _anchor(f"papers-{topic}"),
+                         items))
+    for topic, items in sorted(_group(_by_kind("report"), "").items()):
+        if topic:
+            sections.append((f"Reports · {topic}",
+                             _anchor(f"reports-{topic}"), items))
+        else:
+            sections.append(("Reports", "reports", items))
+    sources = _by_kind("source")
+    if sources:
+        sections.append(("Source documents", "sources", sources))
+    return sections
+
+
+def _row_html(row: dict[str, Any]) -> str:
+    """Render one merged row as a table row."""
+    links = " · ".join(
+        f'<a href="{_esc_attr(href)}">{_esc(label)}</a>'
+        for label, href in row.get("links") or [])
+    risk = row.get("risk")
+    risk_html = (_risk_pill(int(risk), row.get("risk_label"))
+                 if risk is not None else "—")
+    return (
+        "<tr>"
+        f"<td>{_esc(row.get('kind', ''))}</td>"
+        f"<td>{_esc(row.get('name', ''))}</td>"
+        f"<td>{_esc(row.get('target', '') or '—')}</td>"
+        f"<td>{_esc(row.get('date', '') or '—')}</td>"
+        f"<td>{risk_html}</td>"
+        f"<td>{row['findings'] if row.get('findings') is not None else '—'}</td>"
+        f"<td>{links or '—'}</td>"
+        "</tr>")
+
+
 def build_index_html(entries: Iterable[dict[str, Any]], *, title: str,
                      generated_at: datetime | None = None,
                      subtitle: str = "") -> str:
-    """Build the landing page whose table links every hosted item."""
+    """Build the landing page: tabbed sections, one row per hosted item."""
     stamp = (generated_at or datetime.utcnow()).strftime("%Y-%m-%d %H:%M UTC")
-    rows = _sorted_entries(entries)
+    rows = _merge_entries(_sorted_entries(entries))
+    sections = _sections(rows)
+    tabs = " ".join(
+        f'<a href="#{_esc_attr(anchor)}">{_esc(label)} ({len(items)})</a>'
+        for label, anchor, items in sections)
     body: list[str] = [
         f"<p><strong>{len(rows)}</strong> item(s) hosted · "
         f"generated {_esc(stamp)}.</p>",
-        "<table><thead><tr><th>Kind</th><th>Item</th><th>Target</th>"
-        "<th>Date</th><th>Risk</th><th>Findings</th><th>Links</th>"
-        "</tr></thead><tbody>",
+        '<p class="legend">Papers are finalized, reviewed write-ups · '
+        "reports are raw engine output · source documents are the inputs "
+        "imported into <code>data/reports/</code>.</p>",
     ]
-    for entry in rows:
-        links: list[str] = []
-        if entry.get("page"):
-            links.append(f'<a href="{_esc_attr(entry["page"])}">read</a>')
-        if entry.get("raw"):
-            links.append(f'<a href="{_esc_attr(entry["raw"])}">raw</a>')
-        risk = entry.get("risk")
-        risk_html = (_risk_pill(int(risk), entry.get("risk_label"))
-                     if risk is not None else "—")
+    if tabs:
+        body.append(f'<nav class="tabs">{tabs}</nav>')
+    for label, anchor, items in sections:
+        body.append(f'<section id="{_esc_attr(anchor)}">')
+        body.append(f'<h2>{_esc(label)} '
+                    f'<span class="count">({len(items)})</span></h2>')
         body.append(
-            "<tr>"
-            f"<td>{_esc(entry.get('kind', ''))}</td>"
-            f"<td>{_esc(entry.get('name', ''))}</td>"
-            f"<td>{_esc(entry.get('target', '') or '—')}</td>"
-            f"<td>{_esc(entry.get('date', '') or '—')}</td>"
-            f"<td>{risk_html}</td>"
-            f"<td>{entry.get('findings', '—')}</td>"
-            f"<td>{' · '.join(links) or '—'}</td>"
-            "</tr>")
-    body.append("</tbody></table>")
+            "<table><thead><tr><th>Kind</th><th>Item</th><th>Target</th>"
+            "<th>Date</th><th>Risk</th><th>Findings</th><th>Links</th>"
+            "</tr></thead><tbody>")
+        body.extend(_row_html(row) for row in items)
+        body.append("</tbody></table>")
+        body.append("</section>")
     return html_document(title, "\n".join(body), subtitle=subtitle,
                          nav=f'<a href="./">{_esc("All items")}</a>')
 
@@ -354,27 +484,31 @@ def build_index_markdown(entries: Iterable[dict[str, Any]], *, title: str,
                          generated_at: datetime | None = None) -> str:
     """Build a Markdown companion index (``docs/README.md``)."""
     stamp = (generated_at or datetime.utcnow()).strftime("%Y-%m-%d %H:%M UTC")
-    rows = _sorted_entries(entries)
+    rows = _merge_entries(_sorted_entries(entries))
     lines = [
         f"# {title}", "",
         "> **Auto-generated by `python -m research_tool github host`.** "
         f"Generated {stamp} · {len(rows)} item(s).", "",
-        "| Kind | Item | Target | Date | Risk | Findings | Links |",
-        "|---|---|---|---|---:|---:|---|",
     ]
-    for entry in rows:
-        links: list[str] = []
-        if entry.get("page"):
-            links.append(f"[read]({entry['page']})")
-        if entry.get("raw"):
-            links.append(f"[raw]({entry['raw']})")
-        lines.append(
-            f"| {_esc_md(entry.get('kind'))} | {_esc_md(entry.get('name'))} "
-            f"| {_esc_md(entry.get('target')) or '—'} "
-            f"| {entry.get('date') or '—'} | {entry.get('risk', '—')} "
-            f"| {entry.get('findings', '—')} | {' · '.join(links) or '—'} |")
-    lines += ["", "Reports are raw engine output; papers are finalized, "
-              "reviewed write-ups. Organisation rules: "
+    for label, _anchor_id, items in _sections(rows):
+        lines += [f"## {label} ({len(items)})", "",
+                  "| Kind | Item | Target | Date | Risk | Findings | Links |",
+                  "|---|---|---|---|---:|---:|---|"]
+        for row in items:
+            links = " · ".join(
+                f"[{link_label}]({href})"
+                for link_label, href in row.get("links") or [])
+            lines.append(
+                f"| {_esc_md(row.get('kind'))} | {_esc_md(row.get('name'))} "
+                f"| {_esc_md(row.get('target')) or '—'} "
+                f"| {row.get('date') or '—'} "
+                f"| {row['risk'] if row.get('risk') is not None else '—'} "
+                f"| {row['findings'] if row.get('findings') is not None else '—'} "
+                f"| {links or '—'} |")
+        lines.append("")
+    lines += ["Papers are finalized, reviewed write-ups; reports are raw "
+              "engine output; source documents are the inputs imported into "
+              "`data/reports/`. Organisation rules: "
               "`data/papers/ORGANISATION.md`.", ""]
     return "\n".join(lines)
 
@@ -635,7 +769,7 @@ def _base_entry(path: Path, kind: str, page: str | None,
                 raw: str) -> dict[str, Any]:
     return {"kind": kind, "name": path.name, "target": "", "date": "",
             "risk": None, "risk_label": None, "findings": None,
-            "page": page, "raw": raw}
+            "topic": "", "page": page, "raw": raw}
 
 
 def _enrich_from_json(entry: dict[str, Any], path: Path) -> None:
@@ -705,6 +839,8 @@ def _enrich_from_paper_meta(entry: dict[str, Any], meta_path: Path) -> None:
         entry["risk_label"] = meta.get("risk_label")
     if meta.get("findings") is not None:
         entry["findings"] = meta["findings"]
+    if meta.get("topic"):
+        entry["topic"] = str(meta["topic"])
 
 
 @dataclass
@@ -760,7 +896,11 @@ class ReportHost:
             rel = f"reports/{path.name}"
             page = (f"reports/{path.stem}.html"
                     if suffix in (".md", ".markdown", ".json") else None)
-            entry = _base_entry(path, "report", page, rel)
+            # Engine output is always written as ``report_<slug>``; anything
+            # else dropped into ``data/reports/`` is a source document (an
+            # imported PDF, a vendor deck, ...) and gets its own section.
+            kind = "report" if path.stem.lower().startswith("report_") else "source"
+            entry = _base_entry(path, kind, page, rel)
             if suffix == ".json":
                 _enrich_from_json(entry, path)
             elif suffix in (".md", ".markdown"):
@@ -772,7 +912,7 @@ class ReportHost:
             if not entry["date"]:
                 entry["date"] = datetime.fromtimestamp(
                     path.stat().st_mtime).strftime("%Y-%m-%d")
-            hosted.append(HostedFile(path, "report", rel, page, entry))
+            hosted.append(HostedFile(path, kind, rel, page, entry))
         return hosted
 
     def _collect_papers(self, limit: int | None) -> list[HostedFile]:

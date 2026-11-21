@@ -16,6 +16,17 @@ header p { margin: 0; color: #adbac7; font-size: .92rem; }
 main { max-width: 62rem; margin: 0 auto; padding: 1.6rem; }
 nav { font-size: .9rem; margin: .4rem 0 1.2rem; }
 nav a { margin-right: .9rem; }
+.tabs { display: flex; flex-wrap: wrap; gap: .35rem; margin: .8rem 0 1.4rem;
+        border-bottom: 1px solid #d0d7de; padding-bottom: .35rem; }
+.tabs a { display: inline-block; padding: .38rem .75rem; font-size: .9rem;
+          border: 1px solid #d0d7de; border-bottom: none; border-radius: 6px 6px 0 0;
+          background: #f6f8fa; color: #0969da; text-decoration: none;
+          margin-right: 0; }
+.tabs a:hover { background: #eaeef2; }
+.legend { color: #57606a; font-size: .88rem; margin: 0 0 .6rem; }
+section { margin: 1.8rem 0; scroll-margin-top: 1rem; }
+section h2 { margin: .2rem 0 .7rem; font-size: 1.15rem; }
+section .count { color: #57606a; font-weight: 400; font-size: .9rem; }
 a { color: #0969da; text-decoration: none; }
 a:hover { text-decoration: underline; }
 h1, h2, h3 { line-height: 1.25; }
@@ -37,15 +48,28 @@ footer { border-top: 1px solid #d0d7de; margin-top: 2rem; padding: 1rem 1.6rem;
 </head>
 <body>
 <header><h1>Research Reports &amp; Papers</h1><p>Cookieoil/research-tool · GitHub Pages</p></header>
-<main><nav><a href="./">All items</a></nav><p><strong>6</strong> item(s) hosted · generated 2026-11-21 19:20 UTC.</p>
+<main><nav><a href="./">All items</a></nav><p><strong>4</strong> item(s) hosted · generated 2026-11-21 19:29 UTC.</p>
+<p class="legend">Papers are finalized, reviewed write-ups · reports are raw engine output · source documents are the inputs imported into <code>data/reports/</code>.</p>
+<nav class="tabs"><a href="#papers-gacha">Papers · gacha (1)</a> <a href="#reports">Reports (1)</a> <a href="#sources">Source documents (2)</a></nav>
+<section id="papers-gacha">
+<h2>Papers · gacha <span class="count">(1)</span></h2>
 <table><thead><tr><th>Kind</th><th>Item</th><th>Target</th><th>Date</th><th>Risk</th><th>Findings</th><th>Links</th></tr></thead><tbody>
-<tr><td>report</td><td>report_female-oriented-gacha-market.json</td><td>Female-Oriented Gacha Market</td><td>2026-11-21</td><td><span class="pill risk-NONE">0/100 NONE</span></td><td>46</td><td><a href="reports/report_female-oriented-gacha-market.html">read</a> · <a href="reports/report_female-oriented-gacha-market.json">raw</a></td></tr>
-<tr><td>report</td><td>Why_Women_Play_Male_Oriented_Gacha_Games_2026-11-21.pdf</td><td>—</td><td>2026-11-21</td><td>—</td><td>None</td><td><a href="reports/Why_Women_Play_Male_Oriented_Gacha_Games_2026-11-21.pdf">raw</a></td></tr>
-<tr><td>report</td><td>Reign_of_Nightfall_Research_2026-11-21.pdf</td><td>—</td><td>2026-11-21</td><td>—</td><td>None</td><td><a href="reports/Reign_of_Nightfall_Research_2026-11-21.pdf">raw</a></td></tr>
-<tr><td>paper</td><td>female-oriented-gacha-market_2026-11-21_v2.pdf</td><td>Female-Oriented Gacha Market</td><td>2026-11-21</td><td><span class="pill risk-NONE">0/100 NONE</span></td><td>46</td><td><a href="papers/gacha/female-oriented-gacha-market_2026-11-21_v2.pdf">raw</a></td></tr>
-<tr><td>paper</td><td>female-oriented-gacha-market_2026-11-21_v2.md</td><td>Female-Oriented Gacha Market</td><td>2026-11-21</td><td><span class="pill risk-NONE">0/100 NONE</span></td><td>46</td><td><a href="papers/gacha/female-oriented-gacha-market_2026-11-21_v2.html">read</a> · <a href="papers/gacha/female-oriented-gacha-market_2026-11-21_v2.md">raw</a></td></tr>
-<tr><td>paper</td><td>female-oriented-gacha-market_2026-11-21_v2.json</td><td>Female-Oriented Gacha Market</td><td>2026-11-21</td><td><span class="pill risk-NONE">0/100 NONE</span></td><td>46</td><td><a href="papers/gacha/female-oriented-gacha-market_2026-11-21_v2.html">read</a> · <a href="papers/gacha/female-oriented-gacha-market_2026-11-21_v2.json">raw</a></td></tr>
-</tbody></table></main>
+<tr><td>paper</td><td>female-oriented-gacha-market_2026-11-21_v2.md</td><td>Female-Oriented Gacha Market</td><td>2026-11-21</td><td><span class="pill risk-NONE">0/100 NONE</span></td><td>46</td><td><a href="papers/gacha/female-oriented-gacha-market_2026-11-21_v2.html">read</a> · <a href="papers/gacha/female-oriented-gacha-market_2026-11-21_v2.md">md</a> · <a href="papers/gacha/female-oriented-gacha-market_2026-11-21_v2.json">json</a> · <a href="papers/gacha/female-oriented-gacha-market_2026-11-21_v2.pdf">pdf</a></td></tr>
+</tbody></table>
+</section>
+<section id="reports">
+<h2>Reports <span class="count">(1)</span></h2>
+<table><thead><tr><th>Kind</th><th>Item</th><th>Target</th><th>Date</th><th>Risk</th><th>Findings</th><th>Links</th></tr></thead><tbody>
+<tr><td>report</td><td>report_female-oriented-gacha-market.json</td><td>Female-Oriented Gacha Market</td><td>2026-11-21</td><td><span class="pill risk-NONE">0/100 NONE</span></td><td>46</td><td><a href="reports/report_female-oriented-gacha-market.html">read</a> · <a href="reports/report_female-oriented-gacha-market.json">json</a></td></tr>
+</tbody></table>
+</section>
+<section id="sources">
+<h2>Source documents <span class="count">(2)</span></h2>
+<table><thead><tr><th>Kind</th><th>Item</th><th>Target</th><th>Date</th><th>Risk</th><th>Findings</th><th>Links</th></tr></thead><tbody>
+<tr><td>source</td><td>Why_Women_Play_Male_Oriented_Gacha_Games_2026-11-21.pdf</td><td>—</td><td>2026-11-21</td><td>—</td><td>—</td><td><a href="reports/Why_Women_Play_Male_Oriented_Gacha_Games_2026-11-21.pdf">pdf</a></td></tr>
+<tr><td>source</td><td>Reign_of_Nightfall_Research_2026-11-21.pdf</td><td>—</td><td>2026-11-21</td><td>—</td><td>—</td><td><a href="reports/Reign_of_Nightfall_Research_2026-11-21.pdf">pdf</a></td></tr>
+</tbody></table>
+</section></main>
 <footer>Hosted with the Credential Research Toolkit. Findings are corroborated by public sources; absence of a finding is not proof of absence.</footer>
 </body>
 </html>
