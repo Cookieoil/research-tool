@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vietnam Game Industry - Series Dashboard</title>
+<style>
+  :root { --fg:#1b1b1b; --muted:#666; --line:#e3e3e3; --accent:#0b5fff; }
+  body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+         color:var(--fg); max-width: 980px; margin: 2rem auto; padding: 0 1rem;
+         line-height: 1.5; }
+  h1 { font-size: 1.7rem; margin-bottom: .25rem; }
+  h2 { font-size: 1.2rem; margin-top: 2rem; border-bottom: 1px solid var(--line);
+       padding-bottom: .3rem; }
+  .muted { color: var(--muted); }
+  .mermaid { background: #fafafa; border: 1px solid var(--line); border-radius: 8px;
+             padding: 1rem; overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; margin-top: .75rem; font-size: .92rem; }
+  th, td { border: 1px solid var(--line); padding: .45rem .55rem; text-align: left;
+           vertical-align: top; }
+  th { background: #f4f6f8; }
+  td.num { text-align: right; white-space: nowrap; }
+  td.i0 { background:#f6f7f9; color:#c4c8cf; text-align:center; }
+  td.i1 { background:#dce7ff; text-align:center; }
+  td.i2 { background:#8fb2ff; text-align:center; }
+  td.i3 { background:#0b5fff; color:#fff; text-align:center; }
+  td.ent { font-weight:600; white-space:nowrap; }
+  code { background: #f4f6f8; padding: .1rem .3rem; border-radius: 4px; }
+  footer { margin-top: 2.5rem; color: var(--muted); font-size: .85rem;
+           border-top: 1px solid var(--line); padding-top: 1rem; }
+</style>
+</head>
+<body>
+<h1>Vietnam's Game Industry &mdash; Series Dashboard</h1>
+<p class="muted">Decision-flow diagram and prediction/impact scorecard for the
+Vietnam game research series. Compiled 2026-11-22. Interpretive synthesis; see the
+papers for sources and limitations.</p>
+
+<h2>Decision-flow: who makes the rules</h2>
+<pre class="mermaid">
+flowchart TD
+    A["Politburo / Gen. Sec. To Lam&lt;br/&gt;Resolution 57-NQ/TW - 22 Dec 2024"] --> B["National Assembly&lt;br/&gt;Resolution 176/2025/QH15 - 18 Feb 2025"]
+    B --> C["Government / PM Pham Minh Chinh&lt;br/&gt;Decree 147/2024/ND-CP - 9 Nov 2024"]
+    C --> D["MIC -&gt; ABEI&lt;br/&gt;drafted &amp; administers the game regime"]
+    D --> E["2025 restructuring: MIC split"]
+    E --> F["MOST - Nguyen Manh Hung&lt;br/&gt;science, tech, digital (Res 57)"]
+    E --> G["MCST / ABEI - Le Quang Tu Do&lt;br/&gt;online games: G1-G4 licensing"]
+    C --> H["Enforcement&lt;br/&gt;Public Security + Finance (tax)"]
+    I["Industry &amp; platforms&lt;br/&gt;VNG, Garena, studios, Google, Meta"] -.->|consultation| G
+    G --> H
+</pre>
+
+<h2>Motive map: which reasons drive which entity</h2>
+<p class="muted">Intensity 0&ndash;3 (light to dark) shows how strongly each motive family drives each actor.</p>
+<table>
+  <thead><tr><th>Entity</th><th>Security / control</th><th>Welfare</th><th>Fiscal</th><th>Industrial</th><th>Institutional</th></tr></thead>
+  <tbody>
+    <tr><td class="ent">Party (Politburo)</td><td class="i3">3</td><td class="i1">1</td><td class="i1">1</td><td class="i2">2</td><td class="i1">1</td></tr>
+    <tr><td class="ent">National Assembly</td><td class="i1">1</td><td class="i3">3</td><td class="i1">1</td><td class="i1">1</td><td class="i2">2</td></tr>
+    <tr><td class="ent">Government / PM</td><td class="i1">1</td><td class="i1">1</td><td class="i3">3</td><td class="i3">3</td><td class="i2">2</td></tr>
+    <tr><td class="ent">MIC / ABEI</td><td class="i2">2</td><td class="i1">1</td><td class="i1">1</td><td class="i2">2</td><td class="i3">3</td></tr>
+    <tr><td class="ent">MOST</td><td class="i1">1</td><td class="i0">0</td><td class="i0">0</td><td class="i3">3</td><td class="i2">2</td></tr>
+    <tr><td class="ent">MCST / ABEI</td><td class="i1">1</td><td class="i2">2</td><td class="i0">0</td><td class="i3">3</td><td class="i3">3</td></tr>
+    <tr><td class="ent">Public Security</td><td class="i3">3</td><td class="i2">2</td><td class="i0">0</td><td class="i0">0</td><td class="i1">1</td></tr>
+    <tr><td class="ent">Finance / State Bank</td><td class="i1">1</td><td class="i0">0</td><td class="i3">3</td><td class="i1">1</td><td class="i1">1</td></tr>
+    <tr><td class="ent">Local authorities</td><td class="i1">1</td><td class="i1">1</td><td class="i1">1</td><td class="i1">1</td><td class="i3">3</td></tr>
+    <tr><td class="ent">Industry / platforms</td><td class="i0">0</td><td class="i0">0</td><td class="i1">1</td><td class="i2">2</td><td class="i1">1</td></tr>
+  </tbody>
+</table>
+<p class="muted">Legend: 0 = none, 1 = low, 2 = medium, 3 = high. Source: <code>vietnam-game-motive-map_2026-11-22</code>.</p>
+
+<h2>Prediction scorecard (15 claims)</h2>
+<table>
+  <thead><tr><th>Claim</th><th>Horizon</th><th>Conf.</th><th>Resolve by</th><th>Watch metric</th></tr></thead>
+  <tbody>
+    <tr><td>Vietnam keeps the #1 mobile-export crown</td><td>2031</td><td class="num">0.75</td><td>2031-12-31</td><td>Export ranking (Google/Sensor Tower)</td></tr>
+    <tr><td>Downloads grow, per-user revenue stays low</td><td>2028</td><td class="num">0.70</td><td>2028-12-31</td><td>ARPDAU ex-ads vs ~$0.70</td></tr>
+    <tr><td>Total market nears $1bn; domestic mobile misses it</td><td>2030</td><td class="num">0.60</td><td>2030-12-31</td><td>Domestic mobile revenue</td></tr>
+    <tr><td>Decree 147 consolidates publishing around licensed locals</td><td>2028</td><td class="num">0.75</td><td>2028-12-31</td><td>Share of top-grossing via locals</td></tr>
+    <tr><td>Hyper-casual exporters stay outside the licence regime</td><td>2028</td><td class="num">0.70</td><td>2028-12-31</td><td>Licensing of export studios</td></tr>
+    <tr><td>Licensing friction and revocations persist</td><td>2027</td><td class="num">0.65</td><td>2027-12-31</td><td>G1 revocation rate</td></tr>
+    <tr><td>VNG anchor; big overseas IPO unlikely before 2028</td><td>2028</td><td class="num">0.55</td><td>2028-12-31</td><td>Completed major listing</td></tr>
+    <tr><td>Sky Mavis pivots; no second Web3 mega-hit</td><td>2028</td><td class="num">0.60</td><td>2028-12-31</td><td>New Vietnamese Web3 at scale</td></tr>
+    <tr><td>M&amp;A and consolidation among mid-size studios rise</td><td>2028</td><td class="num">0.60</td><td>2028-12-31</td><td>Studio count / M&amp;A volume</td></tr>
+    <tr><td>Vietnam grows as a co-development hub</td><td>2029</td><td class="num">0.65</td><td>2029-12-31</td><td>Outsourcing revenue/headcount</td></tr>
+    <tr><td>AI squeezes hyper-casual margins</td><td>2028</td><td class="num">0.60</td><td>2028-12-31</td><td>Studio margins</td></tr>
+    <tr><td>Senior talent remains the binding constraint</td><td>2028</td><td class="num">0.65</td><td>2028-12-31</td><td>Senior wage / shortage</td></tr>
+    <tr><td>Esports stays publisher-dependent</td><td>2028</td><td class="num">0.60</td><td>2028-12-31</td><td>Publisher-run vs independent</td></tr>
+    <tr><td>Mobile stays above 85% of players</td><td>2031</td><td class="num">0.70</td><td>2031-12-31</td><td>Platform mix</td></tr>
+    <tr><td>Games increasingly framed as cultural export</td><td>2030</td><td class="num">0.65</td><td>2030-12-31</td><td>Policy / incentive language</td></tr>
+  </tbody>
+</table>
+
+<h2>Impact channels to watch</h2>
+<p>Games' share of digital-economy GMV &middot; cross-border/platform tax receipts &middot;
+senior-talent retention &middot; studio incorporation location &middot; domestic-vs-export
+revenue split.</p>
+
+<h2>Reform predictions (10)</h2>
+<p class="muted">From <code>vietnam-game-policy-reform_2026-11-22</code>; the machine-readable scorecard v2 JSON holds all 25 predictions.</p>
+<table>
+  <thead><tr><th>Claim</th><th>Prob.</th><th>Horizon</th><th>Resolve by</th><th>Watch metric</th></tr></thead>
+  <tbody>
+    <tr><td>Promotion-side incentives keep expanding</td><td class="num">75%</td><td>2028</td><td>2028-12-31</td><td>Digital Technology Law / Decree 96 uptake</td></tr>
+    <tr><td>Games stay a priority cultural industry with tax breaks</td><td class="num">70%</td><td>2028</td><td>2028-12-31</td><td>Priority-list status</td></tr>
+    <tr><td>Continued consolidation around licensed locals</td><td class="num">75%</td><td>2028</td><td>2028-12-31</td><td>Top-grossing share via locals</td></tr>
+    <tr><td>Moderate licensing simplification</td><td class="num">55%</td><td>2028</td><td>2028-12-31</td><td>G1 time / revocation rate</td></tr>
+    <tr><td>Talent retention improves via incentives</td><td class="num">45%</td><td>2029</td><td>2029-12-31</td><td>Senior emigration</td></tr>
+    <tr><td>Deeper content/data liberalisation</td><td class="num">30%</td><td>2030</td><td>2030-12-31</td><td>Data / real-name rules</td></tr>
+    <tr><td>End of the local-entity publishing requirement</td><td class="num">15%</td><td>2031</td><td>2031-12-31</td><td>Local-entity rule</td></tr>
+    <tr><td>Independent esports at scale</td><td class="num">25%</td><td>2030</td><td>2030-12-31</td><td>Independent leagues</td></tr>
+    <tr><td>A genuine value-capture upgrade</td><td class="num">35%</td><td>2031</td><td>2031-12-31</td><td>Share of revenue from original IP</td></tr>
+    <tr><td>Implementation capacity improves enough to matter</td><td class="num">45%</td><td>2029</td><td>2029-12-31</td><td>Procedures / predictability</td></tr>
+  </tbody>
+</table>
+
+<h2>Series papers</h2>
+<p class="muted">Stored under <code>papers/vietnam/</code> (all <code>_2026-11-22</code>):
+<code>vietnam-game-industry-forecast</code>,
+<code>vietnam-game-industry-impact</code>,
+<code>vietnam-game-policy-rationale</code>,
+<code>vietnam-game-policy-actors</code>,
+<code>vietnam-game-motive-map</code>,
+<code>vietnam-game-policy-reform</code>,
+<code>abei-and-mcst-game-regulation</code>,
+<code>vietnam-game-prediction-scorecard_2026-11-22_v2</code>,
+<code>vietnam-game-series-synthesis</code>.</p>
+
+<footer>
+Standalone dashboard for the Vietnam game series. Machine-readable predictions live in
+<code>vietnam-game-prediction-scorecard_2026-11-22.json</code>. This page is a convenience
+artifact; the canonical papers and index are in <code>papers/</code>.
+</footer>
+
+<script type="module">
+  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+  mermaid.initialize({ startOnLoad: true, theme: 'default' });
+</script>
+
+</body>
+</html>
