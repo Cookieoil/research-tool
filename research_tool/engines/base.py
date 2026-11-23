@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from typing import Any
+from urllib.parse import urlencode
 
 import requests
 
@@ -12,6 +13,23 @@ from ..logger import logger
 from ..models.report import Finding
 from ..utils.cache import ResponseCache
 from ..utils.proxy import build_session
+
+# Query parameters whose values must never be written into a cache key.
+_SENSITIVE_PARAMS = {
+    "api_key", "apikey", "key", "token", "access_token", "secret",
+    "hibp-api-key", "deepl-auth-key", "authorization",
+}
+
+
+def _safe_cache_key(url: str, params: dict[str, Any] | None) -> str:
+    """Build a cache key that redacts secret query parameters."""
+    if not params:
+        return f"GET {url}"
+    redacted = {
+        name: ("[redacted]" if str(name).lower() in _SENSITIVE_PARAMS else value)
+        for name, value in params.items()
+    }
+    return f"GET {url}?{urlencode(sorted(redacted.items()), doseq=True)}"
 
 
 class BaseEngine(ABC):
@@ -34,26 +52,35 @@ class BaseEngine(ABC):
     # Networking
     # ------------------------------------------------------------------
     def cached_get(self, url: str, *, timeout: int | None = None,
+                   params: dict[str, Any] | None = None,
+                   cache_key: str | None = None,
                    **kwargs: Any) -> requests.Response | None:
-        """GET with caching. Returns None on failure."""
+        """GET with caching. Returns None on failure.
+
+        ``params`` are sent as query parameters and redacted from the cache
+        key, so API keys never reach the on-disk cache. ``cache_key`` lets a
+        caller supply an explicit, secret-free key.
+        """
         timeout = timeout or self.settings.http.timeout
-        cache_key = f"GET {url}"
+        key = cache_key or _safe_cache_key(url, params)
         if self.cache:
-            hit = self.cache.get(cache_key)
+            hit = self.cache.get(key)
             if hit is not None:
                 logger.debug("[{}] cache hit {}", self.name, url)
                 return _FakeResponse(hit.get("status", 200), hit.get("text", ""))
         try:
-            resp = self.session.get(url, timeout=timeout, **kwargs)
+            resp = self.session.get(url, timeout=timeout, params=params, **kwargs)
         except requests.RequestException as exc:
             logger.debug("[{}] request failed {}: {}", self.name, url, exc)
             return None
         if self.cache and resp.status_code == 200:
-            self.cache.set(cache_key, {"status": resp.status_code, "text": resp.text})
+            self.cache.set(key, {"status": resp.status_code, "text": resp.text})
         return resp
 
-    def cached_get_json(self, url: str, **kwargs: Any) -> Any | None:
-        resp = self.cached_get(url, **kwargs)
+    def cached_get_json(self, url: str, *, params: dict[str, Any] | None = None,
+                        cache_key: str | None = None,
+                        **kwargs: Any) -> Any | None:
+        resp = self.cached_get(url, params=params, cache_key=cache_key, **kwargs)
         if resp is None:
             return None
         try:

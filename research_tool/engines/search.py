@@ -157,9 +157,13 @@ class SearchEngine(BaseEngine):
         key = self.settings.api_keys.serpapi
         if not key:
             return []
-        from urllib.parse import urlencode
-        params = urlencode({"q": query, "api_key": key, "num": limit, "engine": "google"})
-        data = self.cached_get_json(f"https://serpapi.com/search.json?{params}")
+        # Pass the key as a request parameter (not in the URL) so the cache
+        # key stays secret-free.
+        data = self.cached_get_json(
+            "https://serpapi.com/search.json",
+            params={"q": query, "api_key": key, "num": limit,
+                    "engine": "google"},
+        )
         if not data:
             return []
         findings = []

@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
+<meta name="referrer" content="no-referrer">
 <title>Vietnam Game Industry - Series Dashboard</title>
 <style>
   :root { --fg:#1b1b1b; --muted:#666; --line:#e3e3e3; --accent:#0b5fff; }
@@ -13,8 +15,18 @@
   h2 { font-size: 1.2rem; margin-top: 2rem; border-bottom: 1px solid var(--line);
        padding-bottom: .3rem; }
   .muted { color: var(--muted); }
-  .mermaid { background: #fafafa; border: 1px solid var(--line); border-radius: 8px;
-             padding: 1rem; overflow-x: auto; }
+  /* Static decision-flow diagram (no external script required). */
+  .flow { background: #fafafa; border: 1px solid var(--line); border-radius: 8px;
+          padding: 1rem; overflow-x: auto; }
+  .flow ol { list-style: none; margin: 0; padding: 0; }
+  .flow li { border: 1px solid var(--line); border-left: 4px solid var(--accent);
+             border-radius: 6px; background: #fff; padding: .5rem .7rem;
+             margin: .45rem 0; font-size: .92rem; }
+  .flow li .src { display: block; color: var(--muted); font-size: .82rem;
+                  margin-top: .15rem; }
+  .flow .arrow { text-align: center; color: var(--accent); font-size: 1.1rem;
+                 line-height: 1; }
+  .flow .note { color: var(--muted); font-size: .82rem; }
   table { border-collapse: collapse; width: 100%; margin-top: .75rem; font-size: .92rem; }
   th, td { border: 1px solid var(--line); padding: .45rem .55rem; text-align: left;
            vertical-align: top; }
@@ -37,18 +49,34 @@ Vietnam game research series. Compiled 2026-11-22. Interpretive synthesis; see t
 papers for sources and limitations.</p>
 
 <h2>Decision-flow: who makes the rules</h2>
-<pre class="mermaid">
-flowchart TD
-    A["Politburo / Gen. Sec. To Lam&lt;br/&gt;Resolution 57-NQ/TW - 22 Dec 2024"] --> B["National Assembly&lt;br/&gt;Resolution 176/2025/QH15 - 18 Feb 2025"]
-    B --> C["Government / PM Pham Minh Chinh&lt;br/&gt;Decree 147/2024/ND-CP - 9 Nov 2024"]
-    C --> D["MIC -&gt; ABEI&lt;br/&gt;drafted &amp; administers the game regime"]
-    D --> E["2025 restructuring: MIC split"]
-    E --> F["MOST - Nguyen Manh Hung&lt;br/&gt;science, tech, digital (Res 57)"]
-    E --> G["MCST / ABEI - Le Quang Tu Do&lt;br/&gt;online games: G1-G4 licensing"]
-    C --> H["Enforcement&lt;br/&gt;Public Security + Finance (tax)"]
-    I["Industry &amp; platforms&lt;br/&gt;VNG, Garena, studios, Google, Meta"] -.->|consultation| G
-    G --> H
-</pre>
+<div class="flow">
+  <ol>
+    <li>Politburo / Gen. Sec. To Lam
+      <span class="src">Resolution 57-NQ/TW &mdash; 22 Dec 2024</span></li>
+    <div class="arrow">&darr;</div>
+    <li>National Assembly
+      <span class="src">Resolution 176/2025/QH15 &mdash; 18 Feb 2025</span></li>
+    <div class="arrow">&darr;</div>
+    <li>Government / PM Pham Minh Chinh
+      <span class="src">Decree 147/2024/ND-CP &mdash; 9 Nov 2024</span></li>
+    <div class="arrow">&darr;</div>
+    <li>MIC &rarr; ABEI
+      <span class="src">drafted &amp; administers the game regime</span></li>
+    <div class="arrow">&darr;</div>
+    <li>2025 restructuring: MIC split</li>
+    <div class="arrow">&darr;</div>
+    <li>MOST &mdash; Nguyen Manh Hung
+      <span class="src">science, tech, digital (Res 57)</span></li>
+    <li>MCST / ABEI &mdash; Le Quang Tu Do
+      <span class="src">online games: G1&ndash;G4 licensing</span></li>
+    <div class="arrow">&darr;</div>
+    <li>Enforcement
+      <span class="src">Public Security + Finance (tax)</span></li>
+  </ol>
+  <p class="note">Consultation channel: industry &amp; platforms (VNG, Garena,
+  studios, Google, Meta) feed into MCST/ABEI licensing; licensing and enforcement
+  both land on Public Security and Finance.</p>
+</div>
 
 <h2>Motive map: which reasons drive which entity</h2>
 <p class="muted">Intensity 0&ndash;3 (light to dark) shows how strongly each motive family drives each actor.</p>
@@ -131,11 +159,6 @@ Standalone dashboard for the Vietnam game series. Machine-readable predictions l
 <code>vietnam-game-prediction-scorecard_2026-11-22.json</code>. This page is a convenience
 artifact; the canonical papers and index are in <code>papers/</code>.
 </footer>
-
-<script type="module">
-  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
-  mermaid.initialize({ startOnLoad: true, theme: 'default' });
-</script>
 
 </body>
 </html>

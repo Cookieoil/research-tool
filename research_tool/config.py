@@ -36,6 +36,11 @@ _ENV_OVERRIDES: dict[str, tuple[str, str]] = {
     "RESEARCH_GITHUB_OWNER": ("github", "owner"),
     "RESEARCH_GITHUB_REPO": ("github", "repo"),
     "RESEARCH_GITHUB_BRANCH": ("github", "branch"),
+    "RESEARCH_ADMIN_PASSWORD": ("server", "admin_password"),
+    "RESEARCH_ADMIN_PASSWORD_HASH": ("server", "admin_password_hash"),
+    "RESEARCH_SESSION_SECRET": ("server", "session_secret"),
+    "RESEARCH_SERVER_HOST": ("server", "host"),
+    "RESEARCH_SERVER_PORT": ("server", "port"),
 }
 
 
@@ -213,10 +218,15 @@ class GitHubConfig(BaseModel):
     token: str | None = None
     remote: str = "origin"
     site_dir: str = "docs"
-    host_reports: bool = True
+    # Secure defaults: raw engine output (data/raw) is NOT published, and a
+    # newly created repository is private. Opt in explicitly when needed.
+    host_reports: bool = False
     host_papers: bool = True
-    pages: bool = True
-    visibility: str = "public"
+    # Publish machine-readable .json dumps as well. Off by default so a public
+    # site never becomes a full database.
+    host_raw_json: bool = False
+    pages: bool = False
+    visibility: str = "private"
     description: str = (
         "OSINT & credential-verification research reports "
         "(Credential Research Toolkit)")
@@ -290,6 +300,30 @@ class DarkWebConfig(BaseModel):
     )
 
 
+class ServerConfig(BaseModel):
+    """Admin web server (server-verified password authentication).
+
+    ``admin_password`` is convenient for local use; ``admin_password_hash``
+    (a PBKDF2 verifier produced by ``python -m research_tool hash-password``)
+    lets the server run without ever holding the plaintext password. Set
+    ``cookie_secure`` when serving over HTTPS. ``allow_public_read`` keeps the
+    server closed to anonymous users by default; even when enabled, bulk JSON
+    dumps and admin actions always require a session.
+    """
+
+    host: str = "127.0.0.1"
+    port: int = 8000
+    session_ttl_minutes: int = 60
+    max_login_attempts: int = 5
+    lockout_seconds: int = 300
+    allow_public_read: bool = False
+    admin_password: str | None = None
+    admin_password_hash: str | None = None
+    session_secret: str | None = None
+    cookie_secure: bool = False
+    csrf_header: str = "X-CSRF-Token"
+
+
 class Settings(BaseModel):
     app: AppConfig = Field(default_factory=AppConfig)
     http: HttpConfig = Field(default_factory=HttpConfig)
@@ -307,6 +341,7 @@ class Settings(BaseModel):
     sanctions: SanctionsConfig = Field(default_factory=SanctionsConfig)
     regional_search: RegionalSearchConfig = Field(
         default_factory=RegionalSearchConfig)
+    server: ServerConfig = Field(default_factory=ServerConfig)
 
     # ---- convenience path helpers -------------------------------------
     @property

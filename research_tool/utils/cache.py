@@ -65,6 +65,13 @@ class ResponseCache(BaseCache):
         self.enabled = enabled
         self.ttl = ttl_seconds
         self.encrypt = encrypt
+        # Fail fast: silently falling back to plaintext would defeat the
+        # encryption-at-rest guarantee. Refuse to start instead.
+        if self.encrypt and not crypto.is_configured():
+            raise crypto.CryptoError(
+                "cache.encrypt is enabled but RESEARCH_ENCRYPTION_KEY is not "
+                "set. Export a key (see `python -m research_tool keygen`) or "
+                "disable cache.encrypt.")
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(str(self.db_path))
@@ -78,10 +85,9 @@ class ResponseCache(BaseCache):
         except (TypeError, ValueError):
             return None
         if self.encrypt:
-            try:
-                return crypto.encrypt_text(payload)
-            except crypto.CryptoError:
-                return None
+            # Do not swallow CryptoError: a missing/rotated key must surface,
+            # not silently degrade to "nothing was cached".
+            return crypto.encrypt_text(payload)
         return payload
 
     def _decode(self, value: str) -> Any | None:

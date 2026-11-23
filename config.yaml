@@ -169,19 +169,42 @@ papers:
 # A token is required: export RESEARCH_GITHUB_TOKEN (or reuse the `gh` CLI's
 # stored login). Never commit a real token into this file.
 github:
-  enabled: true              # this checkout is connected to GitHub
+  enabled: false             # opt in explicitly before publishing
   owner: "Cookieoil"         # env: RESEARCH_GITHUB_OWNER (blank = token's user)
   repo: "research-tool"      # env: RESEARCH_GITHUB_REPO
   branch: "main"             # env: RESEARCH_GITHUB_BRANCH
   token: null                # env: RESEARCH_GITHUB_TOKEN (never commit a token)
   remote: "origin"           # git remote name to create/update
   site_dir: "docs"           # folder served by GitHub Pages
-  host_reports: true         # include data/raw/ in a bare `github host`
+  # Raw engine output (data/raw) contains unfiltered OSINT findings. Keep it
+  # OFF a public site unless you have reviewed the data.
+  host_reports: false        # include data/raw/ in a bare `github host`
   host_papers: true          # include papers/ in a bare `github host`
-  pages: true                # enable/refresh GitHub Pages when hosting
-  visibility: "public"       # public | private (only used when creating repo)
+  # Publish machine-readable .json dumps too (a full public database). Off by
+  # default; only enable for a trusted/private audience.
+  host_raw_json: false
+  pages: false               # enable/refresh GitHub Pages when hosting
+  visibility: "private"      # public | private (only used when creating repo)
   description: "OSINT & credential-verification research reports (Credential Research Toolkit)"
   commit_message: "Publish research reports to GitHub Pages"
+
+# --- Admin web server (server-verified password authentication) ---
+# Run with: python -m research_tool serve
+# The password is verified on the server; nothing is stored in localStorage.
+# Prefer a PBKDF2 hash over a plaintext password:
+#   python -m research_tool hash-password
+server:
+  host: "127.0.0.1"
+  port: 8000
+  session_ttl_minutes: 60
+  max_login_attempts: 5
+  lockout_seconds: 300
+  allow_public_read: false   # true = anonymous users may read curated pages
+  admin_password: null       # env: RESEARCH_ADMIN_PASSWORD
+  admin_password_hash: null  # env: RESEARCH_ADMIN_PASSWORD_HASH (preferred)
+  session_secret: null       # env: RESEARCH_SESSION_SECRET (auto-generated if unset)
+  cookie_secure: false       # set true when serving over HTTPS
+  csrf_header: "X-CSRF-Token"
 
 # --- Privacy / data protection ---
 privacy:

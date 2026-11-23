@@ -18,6 +18,28 @@ data/audit.log
 data/**/*.enc
 papers/**/*.enc
 .env
+.env.*
+*.db
+*.sqlite
+*.sqlite3
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Machine-readable catalogue dumps (full local database). Keep the
+# human-readable papers/ pages, not the JSON database.
+papers/**/*.meta.json
+papers/INDEX.json
+papers/**/*.json
+
+# Raw imported source databases (JSON dumps). Human-readable PDFs stay.
+data/sources/**/*.json
+
+# Any machine-readable dump under the working data tree (data/papers,
+# data/reports, ...). These are the "full local database" and must never be
+# committed or published. Human-readable PDFs/HTML in docs/ and papers/ stay.
+data/**/*.json
 
 # OS / editor
 .DS_Store

@@ -43,6 +43,10 @@ PySocks>=1.7.1
 # stdlib encrypt-then-MAC construction, so this is recommended but optional.
 cryptography>=42.0.0
 
+# --- Admin web server (server-verified password authentication) ---
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+
 # --- Utilities ---
 PyYAML>=6.0.0
 cachetools>=5.5.0

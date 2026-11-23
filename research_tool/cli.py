@@ -32,6 +32,7 @@ from .reporters import write_report
 from .reporters.markdown_report import MarkdownReporter
 from .utils import github as github_utils
 from .utils.library import PaperLibrary, load_report_file
+from .utils.masking import mask_config
 from .utils.retention import purge_tool_data
 
 def _force_utf8_stdio(*streams: object) -> None:
@@ -398,13 +399,11 @@ def engines() -> None:
 def config() -> None:
     """Show the effective configuration (secrets masked)."""
     settings = get_settings()
-    data = settings.model_dump()
-    for key in data.get("api_keys", {}):
-        if data["api_keys"][key]:
-            data["api_keys"][key] = "***set***"
-    if data.get("github", {}).get("token"):
-        data["github"]["token"] = "***set***"
-    console.print_json(json.dumps(data, default=str))
+    # mask_config covers every secret slot: api_keys, deepl_key,
+    # opensanctions_key, tor_control_password, github.token, server secrets
+    # and proxy URLs with embedded credentials.
+    console.print_json(json.dumps(mask_config(settings.model_dump()),
+                                  default=str))
 
 
 @app.command()
@@ -738,6 +737,69 @@ def decrypt(
     console.print(f"[green]Decrypted:[/green] {dest}")
 
 
+@app.command()
+def hash_password(
+    password: Optional[str] = typer.Option(
+        None, "--password", "-p", prompt=True, hide_input=True,
+        confirmation_prompt=True,
+        help="Password to hash (prompted securely when omitted)."),
+) -> None:
+    """Hash an admin password for RESEARCH_ADMIN_PASSWORD_HASH.
+
+    The output is a salted PBKDF2-HMAC-SHA256 verifier. Store it in an
+    environment variable; the plaintext password never has to be kept.
+    """
+    from .server import hash_password as _hash
+
+    try:
+        verifier = _hash(password or "")
+    except ValueError as exc:
+        console.print(f"[red]Cannot hash password:[/red] {exc}")
+        raise typer.Exit(code=1)
+    console.print(Panel.fit(
+        verifier, title="RESEARCH_ADMIN_PASSWORD_HASH", border_style="green"))
+    console.print(
+        "Export it before starting the server (keep it out of version "
+        "control):\n"
+        f'  [cyan]PowerShell:[/cyan] $env:RESEARCH_ADMIN_PASSWORD_HASH = "{verifier}"\n'
+        f'  [cyan]bash:[/cyan]       export RESEARCH_ADMIN_PASSWORD_HASH="{verifier}"')
+
+
+@app.command()
+def serve(
+    host: Optional[str] = typer.Option(
+        None, "--host", help="Bind address (default: server.host)."),
+    port: Optional[int] = typer.Option(
+        None, "--port", help="Bind port (default: server.port)."),
+) -> None:
+    """Run the admin web server (server-verified password authentication).
+
+    Requires RESEARCH_ADMIN_PASSWORD or RESEARCH_ADMIN_PASSWORD_HASH. The
+    server refuses to start without one, so there is no accidental open mode.
+    """
+    from .server import run_server
+
+    settings = get_settings()
+    if not (settings.server.admin_password
+            or settings.server.admin_password_hash):
+        console.print(
+            "[red]No admin password configured.[/red] Set "
+            "RESEARCH_ADMIN_PASSWORD, or generate a verifier with "
+            "`python -m research_tool hash-password` and set "
+            "RESEARCH_ADMIN_PASSWORD_HASH.")
+        raise typer.Exit(code=1)
+    console.print(
+        f"[green]Starting admin server[/green] on "
+        f"http://{host or settings.server.host}:{port or settings.server.port}")
+    try:
+        run_server(settings, host=host, port=port)
+    except ImportError as exc:
+        console.print(
+            f"[red]Missing web-server dependency:[/red] {exc}\n"
+            "Install it with: [cyan]pip install -r requirements.txt[/cyan]")
+        raise typer.Exit(code=1)
+
+
 # ----------------------------------------------------------------------
 # GitHub hosting (repository + GitHub Pages)
 # ----------------------------------------------------------------------
@@ -848,6 +910,9 @@ def host(
     pages: Optional[bool] = typer.Option(
         None, "--pages/--no-pages", help="Enable/refresh GitHub Pages"),
     branch: Optional[str] = typer.Option(None, help="Branch to publish to"),
+    raw_json: Optional[bool] = typer.Option(
+        None, "--raw-json/--no-raw-json",
+        help="Also publish machine-readable .json dumps (full database)"),
     dry_run: bool = typer.Option(False, "--dry-run",
                                  help="Build the site but do not upload"),
 ) -> None:
@@ -857,10 +922,18 @@ def host(
     do_reports = everything or (gh.host_reports if reports is None else reports)
     do_papers = everything or (gh.host_papers if papers is None else papers)
     enable_pages = gh.pages if pages is None else pages
+    include_raw_json = gh.host_raw_json if raw_json is None else raw_json
+    if include_raw_json and gh.visibility != "private" and not dry_run:
+        console.print(
+            "[yellow]Warning:[/yellow] publishing raw .json dumps to a "
+            "repository whose visibility is not 'private' exposes the full "
+            "database. Prefer [cyan]--no-raw-json[/cyan] or set "
+            "github.visibility: private.")
     try:
         result = github_utils.ReportHost(settings).host(
             reports=do_reports, papers=do_papers, limit=limit, message=message,
-            enable_pages=enable_pages, dry_run=dry_run, branch=branch)
+            enable_pages=enable_pages, dry_run=dry_run, branch=branch,
+            include_raw_json=include_raw_json)
     except github_utils.GitHubError as exc:
         console.print(f"[red]Host failed:[/red] {exc}")
         raise typer.Exit(code=1)

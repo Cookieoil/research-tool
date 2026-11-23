@@ -34,6 +34,8 @@ from pathlib import Path
 from typing import Sequence
 from xml.sax.saxutils import escape as _xml_escape
 
+from ..utils.validators import safe_href
+
 # Candidate font files per role: (regular, bold, italic, bold-italic).
 _FONT_SETS: tuple[tuple[str, tuple[str, str, str, str]], ...] = (
     ("RTimes", ("times.ttf", "timesbd.ttf", "timesi.ttf", "timesbi.ttf")),
@@ -310,12 +312,13 @@ def inline_markup(text: str, *, code_size: float = 8.6) -> str:
                 f'{_cjk(_esc(groups["code"]))}</font>')
         elif groups.get("label") is not None:
             out.append(
-                f'<a href="{_esc(groups["href"])}" color="#0b3d6b">'
+                f'<a href="{_esc(safe_href(groups["href"]))}" color="#0b3d6b">'
                 f'{inline_markup(groups["label"], code_size=code_size)}</a>')
         elif groups.get("autolink") is not None:
             url = groups["autolink"]
             out.append(
-                f'<a href="{_esc(url)}" color="#0b3d6b">{_esc(url)}</a>')
+                f'<a href="{_esc(safe_href(url))}" color="#0b3d6b">'
+                f'{_esc(url)}</a>')
         elif groups.get("bold") is not None:
             out.append(
                 f'<b>{inline_markup(groups["bold"], code_size=code_size)}</b>')

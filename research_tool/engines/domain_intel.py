@@ -87,7 +87,8 @@ class DomainIntelEngine(BaseEngine):
         if not key:
             return []
         data = self.cached_get_json(
-            f"https://api.shodan.io/dns/domain/{domain}?key={key}"
+            f"https://api.shodan.io/dns/domain/{domain}",
+            params={"key": key},
         )
         if not data:
             return []

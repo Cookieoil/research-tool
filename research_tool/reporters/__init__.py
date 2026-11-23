@@ -1,5 +1,6 @@
 """Report writers for the research toolkit."""
 
+import re
 from pathlib import Path
 
 from ..models.report import ResearchReport
@@ -7,6 +8,26 @@ from .excel_report import ExcelReporter
 from .markdown_report import MarkdownReporter
 from .paper_report import PaperReporter
 from .pdf_report import PdfReporter
+
+# Characters that are unsafe in a filename on Windows or POSIX. Backslashes,
+# colons and drive letters are included so a crafted target cannot escape the
+# output directory via ``..\\..\\`` or ``C:\\``.
+_UNSAFE_STEM = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def _safe_stem(value: str) -> str:
+    """Return a filesystem-safe stem (no separators, no traversal)."""
+    stem = _UNSAFE_STEM.sub("_", str(value)).strip("._-")
+    return stem[:120] or "report"
+
+
+def _contained(out_dir: Path, name: str) -> Path:
+    """Join *name* to *out_dir* and refuse anything that escapes it."""
+    base = out_dir.resolve()
+    dest = (base / name).resolve()
+    if not dest.is_relative_to(base):
+        raise ValueError(f"Refusing to write outside {base}: {name!r}")
+    return dest
 
 
 _EXT = {"md": ".md", "markdown": ".md", "pdf": ".pdf",
@@ -34,7 +55,9 @@ def write_report(report: ResearchReport, fmt: str, out_dir: Path,
     written as ``<stem>.<ext>.enc`` (needs ``RESEARCH_ENCRYPTION_KEY``).
     """
     fmt = fmt.lower()
-    stem = stem or f"report_{report.target.replace('/', '_').replace(' ', '_')}"
+    # Sanitise the stem so a hostile target (``..\\..\\evil``) cannot escape
+    # the output directory on Windows.
+    stem = _safe_stem(stem or f"report_{report.target}")
     if fmt not in _EXT:
         raise ValueError(f"Unsupported report format: {fmt}")
     out_dir = Path(out_dir)
@@ -43,20 +66,22 @@ def write_report(report: ResearchReport, fmt: str, out_dir: Path,
         from ..utils import crypto
 
         blob = crypto.encrypt_bytes(_render_bytes(report, fmt))
-        path = out_dir / f"{stem}{_EXT[fmt]}.enc"
+        path = _contained(out_dir, f"{stem}{_EXT[fmt]}.enc")
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(blob)
         return path
 
     if fmt in ("md", "markdown"):
-        return MarkdownReporter().write(report, out_dir / f"{stem}.md")
+        return MarkdownReporter().write(
+            report, _contained(out_dir, f"{stem}.md"))
     if fmt == "pdf":
-        return PdfReporter().write(report, out_dir / f"{stem}.pdf")
+        return PdfReporter().write(report, _contained(out_dir, f"{stem}.pdf"))
     if fmt in ("xlsx", "excel"):
-        return ExcelReporter().write(report, out_dir / f"{stem}.xlsx")
+        return ExcelReporter().write(
+            report, _contained(out_dir, f"{stem}.xlsx"))
     # json
     import json
-    path = out_dir / f"{stem}.json"
+    path = _contained(out_dir, f"{stem}.json")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report.to_dict(), indent=2), encoding="utf-8")
     return path

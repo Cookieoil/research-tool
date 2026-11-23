@@ -98,6 +98,20 @@ def _rel_posix(root: Path, path: Path) -> str:
     return path.relative_to(root).as_posix()
 
 
+def _contained(root: Path, candidate: Path) -> Path:
+    """Resolve *candidate* and refuse anything outside *root*.
+
+    ``record.files`` entries come from JSON catalogue records; a tampered or
+    hand-edited record could otherwise point at ``../../etc/passwd`` and make
+    the archive/mirror code move or copy arbitrary files.
+    """
+    base = root.resolve()
+    resolved = candidate.resolve()
+    if not resolved.is_relative_to(base):
+        raise ValueError(f"Refusing path outside {base}: {candidate}")
+    return resolved
+
+
 def load_report_file(path: str | Path) -> tuple[ResearchReport, dict[str, Any]]:
     """Load a saved report JSON produced by ``--format json`` or ``publish``.
 
@@ -217,8 +231,9 @@ class PaperLibrary:
         # legible for humans.
         targets: list[tuple[str, Path]] = []
         for fmt in formats:
-            dest = ((records_folder if fmt == "json" else folder)
-                    / f"{paper_id}{PAPER_EXT[fmt]}")
+            dest = _contained(self.root, (records_folder if fmt == "json"
+                                          else folder)
+                              / f"{paper_id}{PAPER_EXT[fmt]}")
             targets.append((fmt, dest))
         files = [_rel_posix(self.root, dest) for _fmt, dest in targets]
 
@@ -245,7 +260,7 @@ class PaperLibrary:
         for fmt, dest in targets:
             reporter.write(report, meta, dest, include_raw=include_raw)
         # The catalogue record sits beside the JSON copy in _meta/<topic>/.
-        meta_path = records_folder / f"{paper_id}{META_SUFFIX}"
+        meta_path = _contained(self.root, records_folder / f"{paper_id}{META_SUFFIX}")
         meta_path.write_text(
             json.dumps(meta.to_dict(), indent=2, ensure_ascii=False),
             encoding="utf-8")
@@ -394,10 +409,11 @@ class PaperLibrary:
             for rel in record.files:
                 if not rel.lower().endswith(".pdf"):
                     continue
-                src = self.root / rel
+                src = _contained(self.root, self.root / rel)
                 if not src.is_file():
                     continue
-                dest = mirror / _pdf_mirror_name(record, taken=written)
+                dest = _contained(mirror, mirror / _pdf_mirror_name(
+                    record, taken=written))
                 if (not dest.exists()
                         or dest.stat().st_size != src.stat().st_size
                         or dest.read_bytes() != src.read_bytes()):
@@ -423,15 +439,16 @@ class PaperLibrary:
         if record.status == "archived":
             return record
 
-        meta_path = self.meta_path(paper_id, record.topic)
-        dest_dir = self.root / ARCHIVE_DIR / record.topic
+        meta_path = _contained(self.root, self.meta_path(paper_id, record.topic))
+        dest_dir = _contained(self.root,
+                              self.root / ARCHIVE_DIR / record.topic)
         dest_dir.mkdir(parents=True, exist_ok=True)
         moved: list[str] = []
         for rel in record.files:
-            src = self.root / rel
+            src = _contained(self.root, self.root / rel)
             if not src.exists():
                 continue
-            dest = dest_dir / src.name
+            dest = _contained(dest_dir, dest_dir / src.name)
             src.replace(dest)
             moved.append(f"{ARCHIVE_DIR}/{record.topic}/{src.name}")
 

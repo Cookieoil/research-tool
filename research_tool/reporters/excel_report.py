@@ -6,6 +6,17 @@ from pathlib import Path
 
 from ..models.report import ResearchReport
 
+# Cells beginning with these characters are interpreted as formulas by Excel.
+# OSINT findings are attacker-influenced text, so neutralise them.
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _safe_cell(value: object) -> object:
+    """Prefix formula-looking strings so Excel treats them as text."""
+    if isinstance(value, str) and value.startswith(_FORMULA_PREFIXES):
+        return "'" + value
+    return value
+
 
 class ExcelReporter:
     def render_bytes(self, report: ResearchReport) -> bytes:
@@ -20,11 +31,11 @@ class ExcelReporter:
 
         rows = [
             {
-                "engine": f.engine,
-                "category": f.category,
-                "title": f.title,
-                "detail": f.detail,
-                "url": f.url,
+                "engine": _safe_cell(f.engine),
+                "category": _safe_cell(f.category),
+                "title": _safe_cell(f.title),
+                "detail": _safe_cell(f.detail),
+                "url": _safe_cell(f.url),
                 "confidence": f.confidence,
             }
             for f in report.findings
@@ -34,13 +45,13 @@ class ExcelReporter:
         ])
 
         meta = pd.DataFrame([{
-            "target": report.target,
-            "target_kind": report.target_kind,
+            "target": _safe_cell(report.target),
+            "target_kind": _safe_cell(report.target_kind),
             "generated_at": report.generated_at.isoformat(),
             "findings": len(report.findings),
             "risk_score": report.risk_score,
-            "engines_run": ", ".join(report.engines_run),
-            "summary": report.summary,
+            "engines_run": _safe_cell(", ".join(report.engines_run)),
+            "summary": _safe_cell(report.summary),
         }])
 
         buf = BytesIO()

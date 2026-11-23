@@ -15,7 +15,7 @@ from bs4 import BeautifulSoup
 
 from ..logger import logger
 from ..models.report import Finding
-from ..utils.validators import is_url
+from ..utils.validators import is_safe_url, is_url
 from .base import BaseEngine
 
 _EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
@@ -96,6 +96,16 @@ class WebScraperEngine(BaseEngine):
         if not is_url(url):
             logger.warning("[web_scraper] '{}' is not a URL", target)
             return []
+        # SSRF guard: never fetch loopback/private/link-local addresses
+        # (cloud metadata endpoints such as 169.254.169.254 included).
+        if not is_safe_url(url, resolve=True):
+            logger.warning("[web_scraper] blocked unsafe/private URL: {}", url)
+            return [self.finding(
+                title=f"Blocked unsafe URL: {url}",
+                detail="Target resolves to a private, loopback or link-local "
+                       "address. Set an explicit allowlist if this is intended.",
+                url=url, confidence=0.1,
+            )]
         return self._scrape(url)
 
 

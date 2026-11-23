@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import Any, Callable
-from urllib.parse import quote_plus, urlencode
+from urllib.parse import quote_plus
 
 from bs4 import BeautifulSoup
 
@@ -408,9 +408,11 @@ class RegionalSearchEngine(BaseEngine):
         engine = _SERPAPI_ENGINES.get(source.key)
         if not key or not engine:
             return []
-        params = urlencode({"q": variant.text, "api_key": key,
-                            "num": limit, "engine": engine})
-        data = self.cached_get_json(f"https://serpapi.com/search.json?{params}")
+        data = self.cached_get_json(
+            "https://serpapi.com/search.json",
+            params={"q": variant.text, "api_key": key,
+                    "num": limit, "engine": engine},
+        )
         if not data or not isinstance(data, dict):
             return []
         results: list[tuple[str, str, str | None]] = []

@@ -53,6 +53,27 @@ def _clean(value: str | None) -> str:
     return normalize_text(value or "")
 
 
+# Sanctions lists are downloaded from public endpoints (and may pass through a
+# proxy/Tor). Refuse XML that declares a DTD/entities: those are the vector for
+# "billion laughs" / external-entity expansion attacks against ElementTree.
+_MAX_XML_CHARS = 80 * 1024 * 1024
+
+
+def _safe_xml_fromstring(text: str) -> ElementTree.Element | None:
+    """Parse *text* only when it is a size-bounded, DTD-free XML document."""
+    if len(text) > _MAX_XML_CHARS:
+        logger.warning("[sanctions] XML payload exceeds size limit; skipped")
+        return None
+    head = text[:8192].lower()
+    if "<!doctype" in head or "<!entity" in head:
+        logger.warning("[sanctions] XML with DOCTYPE/ENTITY rejected")
+        return None
+    try:
+        return ElementTree.fromstring(text)
+    except ElementTree.ParseError:
+        return None
+
+
 # --------------------------------------------------------------------------
 # Parsers - each takes raw text and returns a list of normalised entries.
 # --------------------------------------------------------------------------
@@ -78,9 +99,8 @@ def parse_ofac(text: str) -> list[dict[str, Any]]:
 def parse_un(text: str) -> list[dict[str, Any]]:
     """Parse the UN consolidated list XML (individuals + entities + aliases)."""
     entries: list[dict[str, Any]] = []
-    try:
-        root = ElementTree.fromstring(text)
-    except ElementTree.ParseError:
+    root = _safe_xml_fromstring(text)
+    if root is None:
         return entries
 
     def _tag(el: ElementTree.Element) -> str:
@@ -113,9 +133,8 @@ def parse_un(text: str) -> list[dict[str, Any]]:
 def parse_eu(text: str) -> list[dict[str, Any]]:
     """Parse the EU financial-sanctions XML (``sanctionEntity``/``nameAlias``)."""
     entries: list[dict[str, Any]] = []
-    try:
-        root = ElementTree.fromstring(text)
-    except ElementTree.ParseError:
+    root = _safe_xml_fromstring(text)
+    if root is None:
         return entries
     for el in root.iter():
         if el.tag.split("}")[-1] != "sanctionEntity":

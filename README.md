@@ -351,6 +351,32 @@ python -m research_tool --i-have-authorization full example.com
 > hardware identities, or hide itself from the operating system, because
 > that would defeat the accountability that lawful research depends on.
 
+## Security
+
+The security model, guarantees and hardening checklist are documented in
+[`SECURITY.md`](SECURITY.md). In short:
+
+- **No API keys in client code.** Secrets come from environment variables or
+  `config.yaml`; `config` masks them and logs are redacted.
+- **Admin access is server-verified.** `python -m research_tool serve` starts a
+  FastAPI admin server that checks a salted PBKDF2 password on the server and
+  issues `HttpOnly`, `SameSite=Strict` sessions with CSRF tokens. There is no
+  `localStorage` admin flag to flip.
+- **No full public database.** GitHub hosting defaults to private and excludes
+  raw JSON dumps; anonymous readers only see curated `.md`/`.pdf` views.
+
+```powershell
+python -m research_tool hash-password          # generate a password verifier
+$env:RESEARCH_ADMIN_PASSWORD_HASH = "<printed hash>"
+python -m research_tool serve                  # http://127.0.0.1:8000
+```
+
+The offline security regression suite runs on every push and pull request:
+
+```powershell
+python tests/test_security.py
+```
+
 ## Project layout
 
 ```

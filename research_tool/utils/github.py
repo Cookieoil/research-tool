@@ -37,6 +37,7 @@ import requests
 
 from ..config import Settings
 from ..logger import logger
+from .validators import safe_href
 
 GITHUB_API = "https://api.github.com"
 DEFAULT_SITE_DIR = "docs"
@@ -124,9 +125,9 @@ def _inline(text: str) -> str:
         if code is not None:
             out.append(f"<code>{_esc(code)}</code>")
         elif label is not None:
-            out.append(f'<a href="{_esc_attr(href)}">{_inline(label)}</a>')
+            out.append(f'<a href="{_esc_attr(safe_href(href))}">{_inline(label)}</a>')
         elif autolink is not None:
-            out.append(f'<a href="{_esc_attr(autolink)}">{_esc(autolink)}</a>')
+            out.append(f'<a href="{_esc_attr(safe_href(autolink))}">{_esc(autolink)}</a>')
         elif bold is not None:
             out.append(f"<strong>{_inline(bold)}</strong>")
         else:
@@ -571,6 +572,14 @@ def html_document(title: str, body: str, *, subtitle: str = "",
         "<meta charset=\"utf-8\">\n"
         "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n"
         "<meta name=\"robots\" content=\"noindex\">\n"
+        # Generated report pages never need to run script or load remote
+        # resources. A strict CSP neutralises any markup injection that slips
+        # past the escaping layer.
+        "<meta http-equiv=\"Content-Security-Policy\" content=\""
+        "default-src 'none'; style-src 'unsafe-inline'; "
+        "img-src 'self' data:; font-src 'self' data:; "
+        "base-uri 'none'; form-action 'none'; frame-ancestors 'none'\">\n"
+        "<meta name=\"referrer\" content=\"no-referrer\">\n"
         f"<title>{_esc(title)}</title>\n<style>{_CSS}</style>\n</head>\n<body>\n"
         f"<header><h1>{_esc(title)}</h1>{sub}</header>\n"
         f"<main>{nav_html}{body}</main>\n"
@@ -700,7 +709,7 @@ def _sections(
 def _row_html(row: dict[str, Any]) -> str:
     """Render one merged row as a table row."""
     links = " · ".join(
-        f'<a href="{_esc_attr(href)}">{_esc(label)}</a>'
+        f'<a href="{_esc_attr(safe_href(href))}">{_esc(label)}</a>'
         for label, href in row.get("links") or [])
     risk = row.get("risk")
     risk_html = (_risk_pill(int(risk), row.get("risk_label"))
@@ -1177,10 +1186,12 @@ class ReportHost:
     def _newest_first(paths: list[Path]) -> list[Path]:
         return sorted(paths, key=lambda p: p.stat().st_mtime, reverse=True)
 
-    def _collect_reports(self, limit: int | None) -> list[HostedFile]:
+    def _collect_reports(self, limit: int | None,
+                         include_raw_json: bool = True) -> list[HostedFile]:
         root = self.settings.reports_path
         paths = [p for p in root.iterdir()
-                 if p.is_file() and p.suffix.lower() in REPORT_EXTS]
+                 if p.is_file() and p.suffix.lower() in REPORT_EXTS
+                 and (include_raw_json or p.suffix.lower() != ".json")]
         paths = self._newest_first(paths)
         if limit:
             paths = paths[:limit]
@@ -1209,7 +1220,8 @@ class ReportHost:
             hosted.append(HostedFile(path, kind, rel, page, entry))
         return hosted
 
-    def _collect_papers(self, limit: int | None) -> list[HostedFile]:
+    def _collect_papers(self, limit: int | None,
+                        include_raw_json: bool = True) -> list[HostedFile]:
         root = self.settings.papers_path
         if not root.exists():
             return []
@@ -1222,8 +1234,11 @@ class ReportHost:
             for path in shelf.iterdir():
                 if not path.is_file() or path.name.endswith(".meta.json"):
                     continue
-                if path.suffix.lower() in PAPER_EXTS:
-                    paths.append(path)
+                if path.suffix.lower() not in PAPER_EXTS:
+                    continue
+                if not include_raw_json and path.suffix.lower() == ".json":
+                    continue
+                paths.append(path)
         paths = self._newest_first(paths)
         if limit:
             paths = paths[:limit]
@@ -1257,13 +1272,19 @@ class ReportHost:
         return hosted
 
     def collect(self, *, reports: bool = True, papers: bool = True,
-                limit: int | None = None) -> list[HostedFile]:
-        """Return the report/paper files selected for hosting."""
+                limit: int | None = None,
+                include_raw_json: bool = True) -> list[HostedFile]:
+        """Return the report/paper files selected for hosting.
+
+        ``include_raw_json=False`` keeps machine-readable ``.json`` dumps off
+        the published site, so a public deployment never becomes a full
+        database download.
+        """
         hosted: list[HostedFile] = []
         if reports:
-            hosted += self._collect_reports(limit)
+            hosted += self._collect_reports(limit, include_raw_json)
         if papers:
-            hosted += self._collect_papers(limit)
+            hosted += self._collect_papers(limit, include_raw_json)
         return hosted
 
     # ---- rendering ----------------------------------------------------
@@ -1298,7 +1319,8 @@ class ReportHost:
                 if not isinstance(finding, dict):
                     continue
                 url = finding.get("url")
-                src = (f'<a href="{_esc_attr(url)}">link</a>' if url else "—")
+                src = (f'<a href="{_esc_attr(safe_href(url))}">link</a>'
+                       if url else "—")
                 parts.append(
                     f"<tr><td>{number}</td>"
                     f"<td>{_esc(finding.get('engine', ''))}</td>"
@@ -1324,11 +1346,13 @@ class ReportHost:
 
     def build_site(self, *, reports: bool = True, papers: bool = True,
                    limit: int | None = None,
-                   site_dir: Path | str | None = None) -> SiteBuild:
+                   site_dir: Path | str | None = None,
+                   include_raw_json: bool = True) -> SiteBuild:
         """Render the selected reports/papers into a static site on disk."""
         site = Path(site_dir) if site_dir else self.site_dir
         site.mkdir(parents=True, exist_ok=True)
-        items = self.collect(reports=reports, papers=papers, limit=limit)
+        items = self.collect(reports=reports, papers=papers, limit=limit,
+                             include_raw_json=include_raw_json)
         written: list[Path] = []
         entries: list[dict[str, Any]] = []
         for item in items:
@@ -1404,14 +1428,20 @@ class ReportHost:
              limit: int | None = None, message: str | None = None,
              enable_pages: bool = True, dry_run: bool = False,
              branch: str | None = None,
-             use_git: bool | None = None) -> dict[str, Any]:
-        """Build the site and publish it to GitHub (commit + Pages)."""
+             use_git: bool | None = None,
+             include_raw_json: bool = True) -> dict[str, Any]:
+        """Build the site and publish it to GitHub (commit + Pages).
+
+        ``include_raw_json=False`` (the CLI default) keeps machine-readable
+        dumps off the public site.
+        """
         gh = self.settings.github
         if self.settings.privacy.ephemeral:
             raise GitHubError(
                 "Cannot host in ephemeral mode: hosting writes files and "
                 "uploads them. Drop --ephemeral.")
-        build = self.build_site(reports=reports, papers=papers, limit=limit)
+        build = self.build_site(reports=reports, papers=papers, limit=limit,
+                                include_raw_json=include_raw_json)
         branch = branch or gh.branch
         result: dict[str, Any] = {
             "hosted": len(build.entries), "site_dir": str(build.site_dir),
