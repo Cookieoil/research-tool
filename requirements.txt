@@ -14,7 +14,8 @@ pandas>=2.2.0
 openpyxl>=3.1.0
 python-docx>=1.1.0
 reportlab>=4.2.0
-PyPDF2>=3.0.0
+pypdf>=5.0.0
+defusedxml>=0.7.1
 
 # --- Validation & Models ---
 pydantic>=2.10.0

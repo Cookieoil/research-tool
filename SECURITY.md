@@ -110,9 +110,29 @@ and cache encryption. It runs on every push and pull request via
       `RESEARCH_SESSION_SECRET`.
 - [ ] Keep `server.allow_public_read: false` unless you deliberately want a
       read-only public view.
-- [ ] Keep the GitHub repository **private** and `github.host_reports: false`.
+- [ ] Keep the source repository **private** and `github.host_reports: false`.
 - [ ] Rotate any API key that was ever committed to a public repository.
 - [ ] Run `python -m research_tool config` after configuration changes and
       confirm no secret is printed.
 - [ ] Review `git ls-files` for `*.json`, `*.db`, `*.env` and `.pem` files before
       publishing a repository.
+
+### Split-repository architecture (public reports, private source)
+
+The project is published as two repositories:
+
+| Repository | Visibility | Contents |
+|---|---|---|
+| `research-tool-source` | **Private** | Full source, tests, git history and the local database. |
+| `research-tool` | **Public** | Source snapshot + `docs/` static site only. No `.json`/`.db` dumps in the tree or history. |
+
+The public repository backs GitHub Pages
+(`https://cookieoil.github.io/research-tool/`). It is generated from the
+cleaned history and contains **zero** machine-readable database dumps. The
+admin server is never deployed to Pages; it runs locally only.
+
+Verify the public tree is clean before publishing:
+
+```bash
+git ls-tree -r --name-only main | grep -E '\.(json|db|sqlite|env|pem)$' || echo "clean"
+```

@@ -26,6 +26,7 @@ import re
 import sys
 import tempfile
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -627,6 +628,75 @@ def test_published_docs_have_no_external_scripts() -> None:
         assert "mermaid.esm" not in lowered, f"mermaid runtime in {page}"
         assert "mermaid@" not in lowered, f"mermaid CDN in {page}"
         assert "content-security-policy" in lowered, f"no CSP in {page}"
+
+
+def test_sanctions_rejects_padded_doctype() -> None:
+    """Padding before <!DOCTYPE must not bypass the XML-bomb guard."""
+    padded = ("<!--" + "x" * 9000 + "-->"
+              "<!DOCTYPE r [<!ENTITY e SYSTEM 'file:///etc/passwd'>]><r>&e;</r>")
+    assert _safe_xml_fromstring(padded) is None
+
+
+def test_excel_formula_injection_with_leading_whitespace() -> None:
+    """Whitespace-padded formulas must still be neutralised."""
+    for hostile in (" =CMD|' /C calc'!A0", "\n=CMD|' /C calc'!A0",
+                    "\r\n=cmd", "  +1+1", "\t@SUM(A1)", " =SUM(A1:A2)"):
+        escaped = _safe_cell(hostile)
+        assert escaped.startswith("'"), repr(hostile)
+
+
+def test_pbkdf2_iterations_meet_owasp_minimum() -> None:
+    """OWASP ASVS/Password Storage Cheat Sheet: >= 600k PBKDF2-SHA256."""
+    from research_tool import server as server_mod
+    from research_tool.utils import crypto as crypto_mod
+    assert server_mod.PBKDF2_ITERATIONS >= 600_000
+    assert crypto_mod._PBKDF2_ROUNDS >= 600_000
+
+
+def test_verify_password_rejects_absurd_iteration_count() -> None:
+    """A crafted hash with a huge work factor must not be honoured."""
+    from research_tool.server import verify_password
+    absurd = "pbkdf2_sha256$999999999$c2FsdA==$ZGlnZXN0"
+    assert verify_password("anything", absurd) is False
+
+
+def test_redirect_ssrf_is_blocked() -> None:
+    """A 302 to a private address must never be followed."""
+    from research_tool.engines.base import BaseEngine
+
+    class _Stub(BaseEngine):
+        name = "stub"
+
+        def run(self, target, **kwargs):  # noqa: ANN001, ANN003, ARG002
+            return []
+
+    engine = _Stub(Settings())
+    redirect = MagicMock()
+    redirect.is_redirect = True
+    redirect.headers = {"Location": "http://169.254.169.254/latest/meta-data/"}
+    redirect.status_code = 302
+
+    seen: list[str] = []
+
+    def _fake_safe(url: str, resolve: bool = False) -> bool:  # noqa: ARG001
+        seen.append(url)
+        return "169.254" not in url
+
+    with patch("research_tool.engines.base.is_safe_url", side_effect=_fake_safe):
+        with patch.object(engine.session, "get", return_value=redirect) as get:
+            assert engine.cached_get("https://example.com/") is None
+            # Only the first hop was fetched; the unsafe redirect was not.
+            assert get.call_count == 1
+    assert any("169.254" in url for url in seen)
+
+
+def test_server_error_messages_do_not_leak_exceptions() -> None:
+    """500 responses must not echo internal exception text (CWE-209)."""
+    from research_tool import server as server_mod
+    src = Path(server_mod.__file__).read_text(encoding="utf-8")
+    for leak in ("detail=str(exc)", "Run failed: {exc}",
+                 "Archive failed: {exc}", "Purge failed: {exc}"):
+        assert leak not in src, f"exception text leaked via {leak}"
 
 
 def _run_all() -> int:

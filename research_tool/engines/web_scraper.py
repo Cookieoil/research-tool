@@ -34,6 +34,9 @@ class WebScraperEngine(BaseEngine):
                 detail="Non-200 or network error", url=url, confidence=0.2,
             )]
 
+        if getattr(resp, "truncated", False):
+            logger.warning("[web_scraper] response capped at size limit: {}", url)
+
         soup = BeautifulSoup(resp.text, "lxml")
         findings: list[Finding] = []
 

@@ -46,6 +46,7 @@ from fastapi.responses import (
     FileResponse, HTMLResponse, JSONResponse, PlainTextResponse,
     RedirectResponse,
 )
+from starlette.concurrency import run_in_threadpool
 
 from .config import Settings, get_settings
 from .logger import logger
@@ -58,7 +59,7 @@ from .utils.retention import purge_tool_data
 # ---------------------------------------------------------------------------
 # Password hashing (PBKDF2-HMAC-SHA256)
 # ---------------------------------------------------------------------------
-PBKDF2_ITERATIONS = 260_000
+PBKDF2_ITERATIONS = 600_000
 _HASH_SCHEME = "pbkdf2_sha256"
 SESSION_COOKIE = "rt_session"
 MAX_FORM_BYTES = 64 * 1024
@@ -78,16 +79,25 @@ def hash_password(password: str, *, iterations: int = PBKDF2_ITERATIONS) -> str:
     )
 
 
+# Bound the work factor parsed from a stored verifier so a crafted hash string
+# cannot pin a CPU core (DoS) with an absurd iteration count.
+_MIN_PBKDF2_ITERATIONS = 100_000
+_MAX_PBKDF2_ITERATIONS = 2_000_000
+
+
 def verify_password(password: str, stored: str) -> bool:
     """Constant-time check of *password* against a stored PBKDF2 verifier."""
     try:
         scheme, iterations, salt_b64, digest_b64 = stored.split("$", 3)
         if scheme != _HASH_SCHEME:
             return False
+        rounds = int(iterations)
+        if not (_MIN_PBKDF2_ITERATIONS <= rounds <= _MAX_PBKDF2_ITERATIONS):
+            return False
         salt = base64.b64decode(salt_b64)
         expected = base64.b64decode(digest_b64)
         actual = hashlib.pbkdf2_hmac(
-            "sha256", password.encode("utf-8"), salt, int(iterations))
+            "sha256", password.encode("utf-8"), salt, rounds)
         return hmac.compare_digest(actual, expected)
     except (ValueError, TypeError):
         return False
@@ -109,9 +119,11 @@ class Session:
 class SessionStore:
     """In-memory session table with expiry and HMAC-signed cookie values."""
 
-    def __init__(self, ttl_seconds: int, secret: bytes):
+    def __init__(self, ttl_seconds: int, secret: bytes,
+                 max_sessions: int = 256):
         self.ttl = max(60, int(ttl_seconds))
         self.secret = secret
+        self.max_sessions = max(1, int(max_sessions))
         self._lock = threading.Lock()
         self._sessions: dict[str, Session] = {}
 
@@ -145,6 +157,11 @@ class SessionStore:
         )
         with self._lock:
             self._prune(now)
+            # Bound memory: evict the least-recently-seen session when full.
+            while len(self._sessions) >= self.max_sessions:
+                oldest = min(self._sessions.values(),
+                             key=lambda s: s.last_seen)
+                self._sessions.pop(oldest.session_id, None)
             self._sessions[session.session_id] = session
         return session
 
@@ -169,9 +186,11 @@ class SessionStore:
 class LoginThrottle:
     """Per-IP login attempt limiter (slows password guessing)."""
 
-    def __init__(self, max_attempts: int, lockout_seconds: int):
+    def __init__(self, max_attempts: int, lockout_seconds: int,
+                 max_keys: int = 4096):
         self.max_attempts = max(1, int(max_attempts))
         self.lockout = max(1, int(lockout_seconds))
+        self.max_keys = max(1, int(max_keys))
         self._lock = threading.Lock()
         self._failures: dict[str, list[float]] = {}
 
@@ -192,7 +211,12 @@ class LoginThrottle:
 
     def fail(self, ip: str) -> None:
         with self._lock:
-            self._failures.setdefault(ip, []).append(time.time())
+            now = time.time()
+            self._prune(ip, now)
+            if len(self._failures) >= self.max_keys and ip not in self._failures:
+                # Bound memory under a distributed/rotating-key attack.
+                self._failures.pop(next(iter(self._failures)), None)
+            self._failures.setdefault(ip, []).append(now)
 
     def success(self, ip: str) -> None:
         with self._lock:
@@ -753,10 +777,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         engine = (form.get("engine") or "full").strip()
         fmt = (form.get("format") or "markdown").strip()
         try:
-            path = _execute_run(target, engine, fmt)
-        except Exception as exc:  # noqa: BLE001 - surface a safe message
+            path = await run_in_threadpool(_execute_run, target, engine, fmt)
+        except Exception:  # noqa: BLE001 - surface a safe message
             logger.exception("server run failed")
-            return _error_page(f"Run failed: {exc}", status=500)
+            return _error_page("Run failed (see server logs).", status=500)
         return RedirectResponse(f"/reports/{path.name}", status_code=303)
 
     @app.post("/api/run")
@@ -773,10 +797,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         engine = str(payload.get("engine", "full")).strip()
         fmt = str(payload.get("format", "markdown")).strip()
         try:
-            path = _execute_run(target, engine, fmt)
-        except Exception as exc:  # noqa: BLE001
+            path = await run_in_threadpool(_execute_run, target, engine, fmt)
+        except Exception:  # noqa: BLE001
             logger.exception("api run failed")
-            raise HTTPException(status_code=500, detail=str(exc))
+            raise HTTPException(status_code=500, detail="Internal error")
         return {"report": path.name}
 
     @app.post("/publish")
@@ -796,9 +820,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             title = (form.get("title") or "").strip() or None
             _library().publish(report, formats=formats, title=title,
                                include_raw=False, source_report=str(source))
-        except Exception as exc:  # noqa: BLE001
+        except Exception:  # noqa: BLE001
             logger.exception("server publish failed")
-            return _error_page(f"Publish failed: {exc}", status=500)
+            return _error_page("Publish failed (see server logs).", status=500)
         return RedirectResponse("/", status_code=303)
 
     @app.post("/archive")
@@ -813,9 +837,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             _library().archive(paper_id)
         except FileNotFoundError as exc:
             return _error_page(str(exc), status=404)
-        except Exception as exc:  # noqa: BLE001
+        except Exception:  # noqa: BLE001
             logger.exception("server archive failed")
-            return _error_page(f"Archive failed: {exc}", status=500)
+            return _error_page("Archive failed (see server logs).", status=500)
         return RedirectResponse("/", status_code=303)
 
     @app.post("/purge")
@@ -827,9 +851,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             return _error_page("Confirmation is required.")
         try:
             summary = purge_tool_data(settings)
-        except Exception as exc:  # noqa: BLE001
+        except Exception:  # noqa: BLE001
             logger.exception("server purge failed")
-            return _error_page(f"Purge failed: {exc}", status=500)
+            return _error_page("Purge failed (see server logs).", status=500)
         logger.info("admin purge completed: {}", summary)
         return RedirectResponse("/", status_code=303)
 

@@ -7,13 +7,15 @@ from pathlib import Path
 from ..models.report import ResearchReport
 
 # Cells beginning with these characters are interpreted as formulas by Excel.
-# OSINT findings are attacker-influenced text, so neutralise them.
-_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+# OSINT findings are attacker-influenced text, so neutralise them. Leading
+# whitespace is stripped before the check so " =CMD|..." and "\n=CMD|..." cannot
+# slip past the guard; "|" covers DDE-style payloads.
+_FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\n", "|")
 
 
 def _safe_cell(value: object) -> object:
     """Prefix formula-looking strings so Excel treats them as text."""
-    if isinstance(value, str) and value.startswith(_FORMULA_PREFIXES):
+    if isinstance(value, str) and value.lstrip().startswith(_FORMULA_PREFIXES):
         return "'" + value
     return value
 

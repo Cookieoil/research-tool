@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -614,20 +615,28 @@ def test_commit_via_git_stages_deletions_and_extra_pages() -> None:
         assert "docs/stale.html" not in listed           # deletion committed
 
 
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")
+
+
+def _plain(text: str) -> str:
+    """Strip ANSI colour/escape sequences so assertions survive CI terminals."""
+    return _ANSI_RE.sub("", text)
+
+
 def test_cli_exposes_github_commands() -> None:
     from typer.testing import CliRunner
 
     from research_tool import cli as cli_mod
 
     runner = CliRunner()
-    env = {"COLUMNS": "200", "LINES": "60"}   # keep Rich from truncating help
+    env = {"COLUMNS": "200", "LINES": "60", "NO_COLOR": "1", "TERM": "dumb"}
     result = runner.invoke(cli_mod.app, ["github", "--help"], env=env)
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == 0, _plain(result.output)
     for command in ("status", "connect", "host"):
-        assert command in result.output
+        assert command in _plain(result.output)
     helped = runner.invoke(cli_mod.app, ["github", "host", "--help"], env=env)
-    assert helped.exit_code == 0
-    assert "dry-run" in helped.output
+    assert helped.exit_code == 0, _plain(helped.output)
+    assert "dry-run" in _plain(helped.output)
 
 
 def test_cli_config_masks_github_token() -> None:

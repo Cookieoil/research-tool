@@ -32,7 +32,7 @@ _SALT_LEN = 16
 _NONCE_LEN = 16
 _KEY_LEN = 32
 _MAC_LEN = 32
-_PBKDF2_ROUNDS = 200_000
+_PBKDF2_ROUNDS = 600_000
 
 
 class CryptoError(RuntimeError):

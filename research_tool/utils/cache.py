@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
 import time
 from abc import ABC, abstractmethod
@@ -57,6 +58,14 @@ class BaseCache(ABC):
         return hashlib.sha256(key.encode("utf-8")).hexdigest()
 
 
+def _restrict_permissions(path: Path) -> None:
+    """Best-effort owner-only permissions on POSIX; no-op on Windows."""
+    try:
+        os.chmod(path, 0o600)
+    except OSError:  # pragma: no cover - platform dependent
+        pass
+
+
 class ResponseCache(BaseCache):
     """A tiny persistent key/value cache for expensive lookups."""
 
@@ -75,6 +84,7 @@ class ResponseCache(BaseCache):
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(str(self.db_path))
+        _restrict_permissions(self.db_path)
         self._conn.execute(_SCHEMA)
         self._conn.commit()
 

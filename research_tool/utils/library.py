@@ -73,7 +73,7 @@ def slugify(text: str, max_length: int = 60) -> str:
         import hashlib
 
         slug = "paper-" + hashlib.sha1(
-            text.encode("utf-8")).hexdigest()[:8]
+            text.encode("utf-8"), usedforsecurity=False).hexdigest()[:8]
     return slug[:max_length].strip("-") or "paper"
 
 

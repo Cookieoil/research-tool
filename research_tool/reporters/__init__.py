@@ -1,5 +1,6 @@
 """Report writers for the research toolkit."""
 
+import os
 import re
 from pathlib import Path
 
@@ -28,6 +29,14 @@ def _contained(out_dir: Path, name: str) -> Path:
     if not dest.is_relative_to(base):
         raise ValueError(f"Refusing to write outside {base}: {name!r}")
     return dest
+
+
+def _restrict_permissions(path: Path) -> None:
+    """Best-effort owner-only permissions on POSIX; no-op on Windows."""
+    try:
+        os.chmod(path, 0o600)
+    except OSError:  # pragma: no cover - platform dependent
+        pass
 
 
 _EXT = {"md": ".md", "markdown": ".md", "pdf": ".pdf",
@@ -69,21 +78,29 @@ def write_report(report: ResearchReport, fmt: str, out_dir: Path,
         path = _contained(out_dir, f"{stem}{_EXT[fmt]}.enc")
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(blob)
+        _restrict_permissions(path)
         return path
 
     if fmt in ("md", "markdown"):
-        return MarkdownReporter().write(
+        path = MarkdownReporter().write(
             report, _contained(out_dir, f"{stem}.md"))
+        _restrict_permissions(path)
+        return path
     if fmt == "pdf":
-        return PdfReporter().write(report, _contained(out_dir, f"{stem}.pdf"))
+        path = PdfReporter().write(report, _contained(out_dir, f"{stem}.pdf"))
+        _restrict_permissions(path)
+        return path
     if fmt in ("xlsx", "excel"):
-        return ExcelReporter().write(
+        path = ExcelReporter().write(
             report, _contained(out_dir, f"{stem}.xlsx"))
+        _restrict_permissions(path)
+        return path
     # json
     import json
     path = _contained(out_dir, f"{stem}.json")
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report.to_dict(), indent=2), encoding="utf-8")
+    _restrict_permissions(path)
     return path
 
 

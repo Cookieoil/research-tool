@@ -23,8 +23,11 @@ import csv
 import difflib
 import io
 import json
+import re
 from typing import Any
 from urllib.parse import urlencode
+from defusedxml import DefusedXmlException
+from defusedxml import ElementTree as _SafeElementTree
 from xml.etree import ElementTree
 
 from ..logger import logger
@@ -57,6 +60,10 @@ def _clean(value: str | None) -> str:
 # proxy/Tor). Refuse XML that declares a DTD/entities: those are the vector for
 # "billion laughs" / external-entity expansion attacks against ElementTree.
 _MAX_XML_CHARS = 80 * 1024 * 1024
+# Scan the whole document: truncating to a fixed head window lets an attacker
+# pad the payload with comments/whitespace so the DOCTYPE/ENTITY declaration
+# lands outside the inspected slice.
+_XML_DTD_RE = re.compile(r"<!\s*(?:doctype|entity)", re.IGNORECASE)
 
 
 def _safe_xml_fromstring(text: str) -> ElementTree.Element | None:
@@ -64,13 +71,12 @@ def _safe_xml_fromstring(text: str) -> ElementTree.Element | None:
     if len(text) > _MAX_XML_CHARS:
         logger.warning("[sanctions] XML payload exceeds size limit; skipped")
         return None
-    head = text[:8192].lower()
-    if "<!doctype" in head or "<!entity" in head:
+    if _XML_DTD_RE.search(text):
         logger.warning("[sanctions] XML with DOCTYPE/ENTITY rejected")
         return None
     try:
-        return ElementTree.fromstring(text)
-    except ElementTree.ParseError:
+        return _SafeElementTree.fromstring(text)
+    except (ElementTree.ParseError, DefusedXmlException):
         return None
 
 

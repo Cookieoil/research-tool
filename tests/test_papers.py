@@ -402,7 +402,7 @@ def test_academic_pdf_has_no_markdown_leaks() -> None:
     try:
         from io import BytesIO
 
-        from PyPDF2 import PdfReader
+        from pypdf import PdfReader
     except ImportError:                          # PDF parser is optional
         return
     text = "\n".join(page.extract_text() or ""
@@ -474,7 +474,7 @@ def test_chart_blocks_render_without_leaking_syntax() -> None:
     try:
         from io import BytesIO
 
-        from PyPDF2 import PdfReader
+        from pypdf import PdfReader
     except ImportError:                          # PDF parser is optional
         return
     text = "\n".join(page.extract_text() or ""
