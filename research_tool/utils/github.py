@@ -1413,7 +1413,10 @@ class ReportHost:
                 "git working tree. Run 'python -m research_tool github connect' "
                 "first (or remove the git remote to publish through the API).")
         try:
-            site = site_path.relative_to(root).as_posix()
+            # realpath() both sides so Windows 8.3 short names (RUNNER~1)
+            # cannot make a contained site look like it is outside the repo.
+            site = Path(os.path.realpath(str(site_path))).relative_to(
+                Path(os.path.realpath(str(root)))).as_posix()
         except ValueError:                       # site outside the repo
             site = str(site_path)
         _git(["add", "-A", "--", site], root)

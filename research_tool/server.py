@@ -33,6 +33,7 @@ import base64
 import hashlib
 import hmac
 import html
+import os
 import secrets
 import threading
 import time
@@ -230,8 +231,10 @@ def _safe_file(root: Path, relative: str,
                allowed_exts: set[str]) -> Path | None:
     """Resolve *relative* under *root* or return ``None`` (path traversal)."""
     try:
-        base = root.resolve()
-        candidate = (base / relative).resolve()
+        # realpath() resolves Windows 8.3 short names and symlinks so both
+        # sides compare in the same form (see _rel_posix in utils/library.py).
+        base = Path(os.path.realpath(str(root)))
+        candidate = Path(os.path.realpath(str(base / relative)))
     except (OSError, ValueError):
         return None
     if not candidate.is_relative_to(base) or not candidate.is_file():
@@ -672,7 +675,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             _check_csrf(request, session, form)
             sessions.destroy(session.session_id)
         response = RedirectResponse("/login", status_code=303)
-        response.delete_cookie(SESSION_COOKIE, path="/")
+        # Mirror _set_cookie()'s attributes so the browser treats this as the
+        # same cookie and clears it.
+        response.delete_cookie(
+            SESSION_COOKIE, path="/", httponly=True, samesite="strict",
+            secure=bool(server.cookie_secure),
+        )
         return response
 
     @app.post("/api/auth/logout")
@@ -681,7 +689,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         _check_csrf(request, session)
         sessions.destroy(session.session_id)
         response = JSONResponse({"authenticated": False})
-        response.delete_cookie(SESSION_COOKIE, path="/")
+        # Mirror _set_cookie()'s attributes so the browser treats this as the
+        # same cookie and clears it.
+        response.delete_cookie(
+            SESSION_COOKIE, path="/", httponly=True, samesite="strict",
+            secure=bool(server.cookie_secure),
+        )
         return response
 
     # ---- pages & files --------------------------------------------------
