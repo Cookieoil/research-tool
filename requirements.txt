@@ -42,7 +42,7 @@ PySocks>=1.7.1
 # Provides AES/Fernet for the response cache (cache.encrypt) and exported
 # reports (reporting.encrypt). Without it the toolkit falls back to a
 # stdlib encrypt-then-MAC construction, so this is recommended but optional.
-cryptography>=42.0.0
+cryptography>=50.0.2
 
 # --- Admin web server (server-verified password authentication) ---
 fastapi>=0.115.0
