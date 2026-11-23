@@ -95,8 +95,15 @@ def normalise_formats(formats: Iterable[str] | None) -> list[str]:
 
 
 def _rel_posix(root: Path, path: Path) -> str:
-    """Return *path* relative to *root* using POSIX separators."""
-    return path.relative_to(root).as_posix()
+    """Return *path* relative to *root* using POSIX separators.
+
+    Both sides are normalised through ``os.path.realpath`` so Windows 8.3
+    short names (``RUNNER~1``) and symlinks cannot make a contained path look
+    like it escaped its base.
+    """
+    base = Path(os.path.realpath(str(root)))
+    resolved = Path(os.path.realpath(str(path)))
+    return resolved.relative_to(base).as_posix()
 
 
 def _contained(root: Path, candidate: Path) -> Path:
@@ -422,8 +429,13 @@ class PaperLibrary:
                         or dest.read_bytes() != src.read_bytes()):
                     shutil.copyfile(src, dest)
                 written.append(dest)
+        # Compare by name: ``written`` holds realpath-resolved paths while the
+        # glob yields paths prefixed with the raw ``self.root`` (which can be a
+        # Windows 8.3 short name), so a direct path comparison would wrongly
+        # treat every freshly written PDF as stale and delete it.
+        written_names = {path.name for path in written}
         for stale in mirror.glob("*.pdf"):
-            if stale not in written:
+            if stale.name not in written_names:
                 stale.unlink(missing_ok=True)
         return written
 

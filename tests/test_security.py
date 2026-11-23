@@ -50,7 +50,7 @@ from research_tool.server import (
 from research_tool.utils import crypto
 from research_tool.utils.cache import ResponseCache
 from research_tool.utils.github import ReportHost, markdown_to_html
-from research_tool.utils.library import _contained
+from research_tool.utils.library import _contained, _rel_posix
 from research_tool.utils.masking import mask_config
 from research_tool.utils.validators import is_private_host, is_safe_url, safe_href
 
@@ -553,6 +553,25 @@ def test_library_contained_rejects_escape() -> None:
         except ValueError:
             raised = True
         assert raised, "_contained accepted a path outside its root"
+
+
+def test_rel_posix_normalises_equivalent_paths() -> None:
+    """Equivalent paths must resolve to the same relative name.
+
+    ``_rel_posix`` is the bridge between the realpath-resolved destinations
+    written by ``_contained`` and the raw ``self.root``. Without normalising
+    both sides, Windows 8.3 short names (``RUNNER~1``) or redundant ``..``
+    components make a contained file look like it escaped its base.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "papers"
+        folder = root / "people"
+        folder.mkdir(parents=True)
+        target = folder / "jane-doe.md"
+        target.write_text("x", encoding="utf-8")
+        odd = root / "." / "people" / ".." / "people" / "jane-doe.md"
+        assert _rel_posix(root, odd) == "people/jane-doe.md"
+        assert _rel_posix(root, target) == "people/jane-doe.md"
 
 
 def test_is_safe_url_blocks_private_and_loopback() -> None:
