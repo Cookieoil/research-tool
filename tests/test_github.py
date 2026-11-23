@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import subprocess
 import sys
 import tempfile
 from datetime import datetime
@@ -565,6 +566,52 @@ def test_build_site_prunes_stale_pages() -> None:
         host.build_site()                    # rebuild prunes it
         assert not stale.exists()
         assert (site / "papers" / "people" / "jane-doe_2026-11-21.md").exists()
+
+
+def test_commit_via_git_stages_deletions_and_extra_pages() -> None:
+    """The site commit must include pruned files and hand-authored pages."""
+    from research_tool.utils.github import git_available
+
+    if not git_available():
+        return                                   # no git on PATH: skip
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "work"
+        root.mkdir()
+        origin = Path(tmp) / "origin.git"
+        (root / "docs").mkdir()
+        (root / "docs" / "index.html").write_text("<h1>a</h1>", encoding="utf-8")
+        (root / "docs" / "stale.html").write_text("<h1>old</h1>",
+                                                  encoding="utf-8")
+        (root / "docs" / "dashboard.html").write_text("<h1>dash</h1>",
+                                                      encoding="utf-8")
+
+        def git(*args: str) -> None:
+            subprocess.run(["git", *args], cwd=root, capture_output=True,
+                           text=True, check=False)
+
+        git("init", "-b", "main")
+        if not (root / ".git").exists():            # git older than 2.28
+            git("init")
+            git("checkout", "-b", "main")
+        git("config", "user.email", "t@example.com")
+        git("config", "user.name", "test")
+        subprocess.run(["git", "init", "--bare", str(origin)], cwd=root,
+                       capture_output=True, text=True, check=False)
+        git("remote", "add", "origin", str(origin))
+        git("add", "-A")
+        git("commit", "-m", "seed")
+
+        (root / "docs" / "stale.html").unlink()          # pruned by the build
+        settings = _settings(root)
+        host = ReportHost(settings, client=_client(FakeSession()))
+        host._commit_via_git({"docs/index.html": b"<h1>a</h1>"}, "site update",
+                             "main", "origin")
+        files = subprocess.run(["git", "ls-files", "docs"], cwd=root,
+                               capture_output=True, text=True, check=False)
+        listed = files.stdout.split()
+        assert "docs/index.html" in listed
+        assert "docs/dashboard.html" in listed           # untracked before
+        assert "docs/stale.html" not in listed           # deletion committed
 
 
 def test_cli_exposes_github_commands() -> None:

@@ -1033,6 +1033,18 @@ def git_remote_url(repo_root: Path, remote: str = DEFAULT_REMOTE) -> str | None:
     return url if proc.returncode == 0 and url else None
 
 
+def git_repo_root(path: Path) -> Path | None:
+    """Return the git working tree that contains *path*, or ``None``.
+
+    The site folder decides which repository is committed, so a checkout whose
+    ``site_dir`` lives in another working tree still commits to the right place.
+    """
+    for candidate in (path, *path.parents):
+        if (candidate / ".git").exists():
+            return candidate
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Collecting reports / papers into a hostable site
 # ---------------------------------------------------------------------------
@@ -1363,8 +1375,24 @@ class ReportHost:
     # ---- publishing ---------------------------------------------------
     def _commit_via_git(self, rel_files: dict[str, bytes], message: str,
                         branch: str, remote: str) -> None:
-        root = self.settings.root
-        _git(["add", "--", *sorted(rel_files)], root)
+        """Commit the site folder with git and push it.
+
+        *rel_files* is unused here (the API path writes individual blobs); with
+        git we stage the whole site folder so deletions and hand-authored pages
+        are included, then commit and push in one operation.
+        """
+        site_path = self.settings.site_path
+        root = git_repo_root(site_path)
+        if root is None:
+            raise GitHubError(
+                f"Cannot commit the site with git: {site_path} is not inside a "
+                "git working tree. Run 'python -m research_tool github connect' "
+                "first (or remove the git remote to publish through the API).")
+        try:
+            site = site_path.relative_to(root).as_posix()
+        except ValueError:                       # site outside the repo
+            site = str(site_path)
+        _git(["add", "-A", "--", site], root)
         _git(["commit", "-m", message], root)
         push = _git(["push", remote, f"HEAD:{branch}"], root)
         if push.returncode != 0:
@@ -1400,10 +1428,11 @@ class ReportHost:
 
         rel_files = {_rel(self.settings.root, p): p.read_bytes()
                      for p in build.files}
-        remote = git_remote_url(self.settings.root, gh.remote)
+        repo_root = git_repo_root(self.settings.site_path) or self.settings.root
+        remote = git_remote_url(repo_root, gh.remote)
         if use_git is None:
             use_git = (bool(remote) and git_available()
-                       and (self.settings.root / ".git").exists())
+                       and (repo_root / ".git").exists())
         if use_git:
             self._commit_via_git(rel_files, message or gh.commit_message,
                                  branch, gh.remote)
