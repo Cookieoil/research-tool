@@ -24,8 +24,10 @@ def _safe_stem(value: str) -> str:
 
 def _contained(out_dir: Path, name: str) -> Path:
     """Join *name* to *out_dir* and refuse anything that escapes it."""
-    base = out_dir.resolve()
-    dest = (base / name).resolve()
+    # os.path.realpath() resolves Windows 8.3 short names (e.g. RUNNER~1)
+    # as well as symlinks, so both sides compare in the same form.
+    base = Path(os.path.realpath(str(out_dir)))
+    dest = Path(os.path.realpath(str(base / name)))
     if not dest.is_relative_to(base):
         raise ValueError(f"Refusing to write outside {base}: {name!r}")
     return dest

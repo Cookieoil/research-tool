@@ -22,6 +22,7 @@ the ``.meta.json`` records and must never be hand-edited.
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import unicodedata
@@ -105,8 +106,10 @@ def _contained(root: Path, candidate: Path) -> Path:
     hand-edited record could otherwise point at ``../../etc/passwd`` and make
     the archive/mirror code move or copy arbitrary files.
     """
-    base = root.resolve()
-    resolved = candidate.resolve()
+    # os.path.realpath() resolves Windows 8.3 short names (e.g. RUNNER~1)
+    # as well as symlinks, so both sides compare in the same form.
+    base = Path(os.path.realpath(str(root)))
+    resolved = Path(os.path.realpath(str(candidate)))
     if not resolved.is_relative_to(base):
         raise ValueError(f"Refusing path outside {base}: {candidate}")
     return resolved
