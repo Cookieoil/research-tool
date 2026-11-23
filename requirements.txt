@@ -30,7 +30,7 @@ loguru>=0.7.0
 # --- Domain & Network ---
 python-whois>=0.9.0
 dnspython>=2.7.0
-tldextract>=5.1.0
+tldextract>=5.4.0
 
 # --- Search (DuckDuckGo; no API key required) ---
 ddgs>=9.0.0
