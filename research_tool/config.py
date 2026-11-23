@@ -43,9 +43,13 @@ class AppConfig(BaseModel):
     name: str = "Credential Research Toolkit"
     version: str = "1.4.0"
     data_dir: str = "data"
-    reports_dir: str = "data/reports"
-    # Finalized research papers (curated output), separate from raw reports.
-    papers_dir: str = "data/papers"
+    # Raw engine output (transient, purge-eligible). Kept inside ``data/`` so
+    # machine state never mixes with the human-readable paper library.
+    reports_dir: str = "data/raw"
+    # Finalized research papers (curated, human-facing deliverables).
+    papers_dir: str = "papers"
+    # Imported source documents (prior drafts, vendor decks, raw JSON inputs).
+    sources_dir: str = "data/sources"
     cache_dir: str = "data/cache"
 
 
@@ -316,14 +320,22 @@ class Settings(BaseModel):
 
     @property
     def reports_path(self) -> Path:
+        """Folder for raw engine output (``data/raw``)."""
         p = self.resolve(self.app.reports_dir)
         p.mkdir(parents=True, exist_ok=True)
         return p
 
     @property
     def papers_path(self) -> Path:
-        """Root of the finalized-paper library (``data/papers``)."""
+        """Root of the finalized-paper library (``papers``)."""
         p = self.resolve(self.app.papers_dir)
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    @property
+    def sources_path(self) -> Path:
+        """Folder holding imported source documents (``data/sources``)."""
+        p = self.resolve(self.app.sources_dir)
         p.mkdir(parents=True, exist_ok=True)
         return p
 

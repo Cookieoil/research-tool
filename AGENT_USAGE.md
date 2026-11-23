@@ -5,8 +5,9 @@
 
 ## 0. TL;DR
 - Run everything from the repo root: `python -m research_tool <command> <target> [options]`
-- Pick a command (§2), then add `--format markdown|json|pdf|excel` to save a report under `data/reports/`.
-- **Reports (`data/reports/`) are raw findings. Finalized papers go to `data/papers/`** via `publish`; the layout/naming rules are enforced and documented in `data/papers/ORGANISATION.md` (§4.1).
+- Pick a command (§2), then add `--format markdown|json|pdf|excel` to save a report under `data/raw/`.
+- **Reports (`data/raw/`) are raw findings. Finalized papers live in `papers/`** (shelves `vietnam/`, `gacha/`) via `publish`; the layout/naming rules are enforced and documented in `papers/ORGANISATION.md` (§4.1). Ready-to-read PDFs are mirrored in `papers/pdfs/`.
+- **Never leave junk JSON in the raw reports folder**: ad-hoc `search … --format json` runs must use `--ephemeral` or delete the generated `report_*.json` — see the house rule in §4.1.
 - Findings print as a table on stdout; each has `engine, category, title, detail, url, confidence(0-1), data{...}`.
 - A 0-100 risk score and a text summary are produced automatically.
 - Unsure which engines apply? Use `full "<target>"` — it auto-selects by target kind (§3).
@@ -45,7 +46,7 @@ Global options must come **before** the command (§5). Every engine command also
 | `engines` / `config` | — | — | `engines`, `config` |
 | `purge` | — | `--older-than-hours H`, `--yes/-y` | `purge --older-than-hours 0 -y` |
 | `keygen` | — | `--bytes 48`, `--quiet/-q` | `keygen` |
-| `decrypt` | path.enc | `--out/-o` | `decrypt data/reports/x.md.enc` |
+| `decrypt` | path.enc | `--out/-o` | `decrypt papers/x.md.enc` |
 | `github status` | — | — | `github status` |
 | `github connect` | — | `--repo owner/name`, `--visibility public\|private`, `--push`, `--remote`, `--branch` | `github connect --push` |
 | `github host` | — | `--all`, `--reports/--no-reports`, `--papers/--no-papers`, `--limit`, `-m/--message`, `--pages/--no-pages`, `--branch`, `--dry-run` | `github host --reports --limit 20` |
@@ -67,38 +68,46 @@ Override the plan with `--engines a,b`. Engine names: `search, whois, domain_int
 | Path | Contents |
 |---|---|
 | stdout | rich table of findings + summary + risk score |
-| `data/reports/report_<target>.<ext>` | the report (written only when `--format` is given); spaces/slashes in the target become `_` |
-| `data/reports/*.enc` | encrypted report when `reporting.encrypt: true` + `RESEARCH_ENCRYPTION_KEY` |
-| `data/papers/<topic>/<paper-id>.md\|.pdf\|.json` | finalized paper documents (written by `publish`) |
-| `data/papers/<topic>/<paper-id>.meta.json` | catalogue record for a paper |
-| `data/papers/INDEX.md` / `INDEX.json` | auto-generated paper catalogue |
-| `data/papers/ORGANISATION.md` | the paper-library organisation rules |
+| `data/raw/report_<target>.<ext>` | the report (written only when `--format` is given); spaces/slashes in the target become `_` |
+| `data/raw/*.enc` | encrypted report when `reporting.encrypt: true` + `RESEARCH_ENCRYPTION_KEY` |
+| `papers/vietnam/`, `papers/gacha/` | the finalized-paper shelves (manuscripts `.md` + typeset `.pdf`) — the canonical library |
+| `papers/pdfs/` | reading shelf: every active PDF, filenamed by title (auto-generated) |
+| `papers/<topic>/<paper-id>.md\|.pdf` | finalized paper documents on the shelf (written by `publish`) |
+| `papers/_meta/<topic>/<paper-id>.meta.json` | catalogue record for a paper (with the machine `.json` copy) |
+| `papers/INDEX.md` / `INDEX.json` | auto-generated paper catalogue |
+| `papers/ORGANISATION.md` | the paper-library organisation rules |
+| `papers/README.md` | one-page guide for human readers |
+| `data/raw/` | raw engine reports (transient, purge-target) |
+| `data/sources/` | imported source documents (prior drafts, vendor decks, raw report JSON) |
 | `data/research.log` | rolling log (PII-redacted unless `logging.redact_pii: false`) |
 | `data/cache/responses.db` | HTTP response cache (TTL `cache.ttl_seconds`, default 3600 s) |
 | `data/audit.log` | optional PII-minimised action audit (`ethics.audit_log: true`) |
 | `docs/index.html` | GitHub Pages landing page (built by `github host`; nothing uploaded until then) |
 | `docs/reports/`, `docs/papers/` | site copies + rendered HTML of the hosted reports/papers |
 
-## 4.1 Reports vs. finalized papers (`data/papers/`)
+## 4.1 Reports vs. finalized papers (`papers/`)
 
-**Reports are not papers.** A report (`data/reports/`) records what the engines found and is transient/purge-eligible. A **paper** is the reviewed, citable write-up: abstract, methodology, findings by category, risk assessment, source register, limitations and provenance. Only publish after reviewing a report.
+**Reports are not papers.** A report (`data/raw/`) records what the engines found and is transient/purge-eligible. A **paper** is the reviewed, citable write-up: abstract, methodology, findings by category, risk assessment, source register, limitations and provenance. Only publish after reviewing a report. Documents (`.md`, `.pdf`) live on the shelf; the catalogue record and machine `.json` copy live in `_meta/<topic>/` so the shelves stay readable.
+
+**House rule — no junk JSON in the raw reports folder.** Raw engine output lives in `data/raw/`. Do **not** leave the transient `report_*.json` files that ad-hoc `search … --format json` (or any other one-off engine run) generate. For exploratory searches, run with `--ephemeral` (writes nothing) or delete the generated `report_*.json` immediately after use. Keep a report only if a paper references it via `source_report`, or it is a deliberate deliverable. The **canonical** library is the `papers/vietnam/` and `papers/gacha/` shelves.
 
 | Rule | Value |
 |---|---|
-| Location | `data/papers/<topic>/` |
+| Location | `papers/<topic>/` for documents; `papers/_meta/<topic>/` for the `.meta.json` record and machine `.json` copy (shelves `vietnam/`, `gacha/`, `people/`, …) |
 | Topic shelves | `people` (name/email/username), `domains` (domain/url/ip/onion), `organisations`, `general`; override with `--topic` |
 | Paper ID | `<target-slug>_<YYYY-MM-DD>[_vN]` (publication date, UTC); same-day re-publish gets `_v2`, `_v3`… |
-| Documents | `.md` (primary), `.pdf`, `.json`; each has a sibling `<paper-id>.meta.json` |
+| Documents | `.md` (manuscript, primary) and `.pdf` (typeset edition) on the shelf; `.json` beside the record in `_meta/<topic>/` |
 | Status | `draft` → `final` → `archived` (`papers.default_status` sets the default) |
-| Index | `INDEX.md` / `INDEX.json` are rebuilt from records by every `publish`, `archive-paper` and `papers --rebuild-index`; never edit by hand |
+| Index | `INDEX.md` / `INDEX.json` and the `pdfs/` reading shelf are rebuilt from records by every `publish`, `archive-paper` and `papers --rebuild-index`; never edit by hand |
+| PDF standard | Typeset by `reporters/academic_pdf.py`: title block, abstract box, prose sections, booktabs tables, running header/footer with page numbers, formal reference list |
 | Archive | `archive-paper <paper-id>` moves documents + record to `_archive/<topic>/` |
 | Search | `papers --topic` / `--query` / `--status` / `--archived` |
-| Retention | `purge` leaves `data/papers/` alone unless `--include-papers` is explicit; `--ephemeral` cannot publish |
+| Retention | `purge` targets `data/raw/` (and cache); the paper shelves are left alone unless `--include-papers` is explicit; `--ephemeral` cannot publish |
 
-Minimum workflow: run the engines (`full`/single commands, optionally `--format json`) → review findings and translate non-English material into English → `publish` with a topic, tags and `--status final` → confirm the entry in `data/papers/INDEX.md`. Full rules: `data/papers/ORGANISATION.md`; template: `data/papers/_templates/TEMPLATE_research_paper.md`.
+Minimum workflow: run the engines (`full`/single commands, optionally `--format json`) → review findings and translate non-English material into English → `publish` with a topic, tags and `--status final` → confirm the entry in `papers/INDEX.md`. Full rules: `papers/ORGANISATION.md`; template: `papers/_templates/TEMPLATE_research_paper.md`.
 
 ## 4.2 Hosting reports on GitHub (optional)
-`github connect` links this checkout to a repository; `github host` builds a static site from `data/reports/` + `data/papers/` into `docs/`, commits it in a **single** commit and enables **GitHub Pages**. Nothing is uploaded until you run these commands.
+`github connect` links this checkout to a repository; `github host` builds a static site from `data/raw/` reports and `papers/` into `docs/`, commits it in a **single** commit and enables **GitHub Pages**. Nothing is uploaded until you run these commands.
 
 | Command | Purpose | Key options |
 |---|---|---|
@@ -159,7 +168,7 @@ python -m research_tool dark "ransomware" --tor
 python -m research_tool dark <onion>.onion
 
 # Machine-readable output for downstream parsing
-python -m research_tool full example.com --format json  # -> data/reports/report_example.com.json
+python -m research_tool full example.com --format json  # -> data/raw/report_example.com.json
 ```
 
 ## 8. Driving it from Python (no CLI)
@@ -196,7 +205,7 @@ orch.close()
 | `ethics` | `require_attestation`, `allowed_domains`, `audit_log`, `rate_limit_per_minute` | authorisation + scope + throttling |
 | `privacy` | `ephemeral`, `retention_hours`, `secure_delete_passes` | disk hygiene + the `purge` window |
 | `reporting` | `default_format`, `encrypt` | report defaults / encryption at rest |
-| `papers` | `author`, `default_status`, `formats`, `include_raw` | finalized-paper library defaults (`data/papers/`) |
+| `papers` | `author`, `default_status`, `formats`, `include_raw` | finalized-paper library defaults (`papers/`) |
 | `github` | `owner`, `repo`, `branch`, `site_dir`, `host_reports`, `host_papers`, `pages`, `visibility` | GitHub hosting target and what `github host` publishes |
 
 ## 10. Environment variables (override `config.yaml`)
@@ -212,8 +221,9 @@ orch.close()
 - Sanctions fuzzy matching (default threshold 0.8) can surface unrelated same-name people; always review before asserting.
 - Repeated runs are served from cache (TTL); use `--ephemeral` to leave nothing on disk.
 - Reports are written to disk only when `--format` is passed; otherwise results are printed only.
-- `publish` is the only writer of `data/papers/`. Do not copy papers into the library by hand: without a `.meta.json` record they are invisible to `INDEX.md` and `papers`.
-- `--ephemeral` cannot `publish` (papers are explicit disk writes). `purge` keeps `data/papers/` unless `--include-papers` is passed.
+- `publish` is the only writer of `papers/`. Do not copy papers into the library by hand: without a `.meta.json` record they are invisible to `INDEX.md` and `papers`.
+- `--ephemeral` cannot `publish` (papers are explicit disk writes). `purge` keeps `papers/` unless `--include-papers` is passed.
+- PDFs are typeset from the manuscript, so **fix the `.md`, not the `.pdf`**; run `papers --rebuild-index` after editing a manuscript to refresh the PDF, the index and the `pdfs/` reading shelf.
 - `github host` is the only command that uploads: it commits the selected reports/papers to the GitHub repo and enables Pages (public by default). `--ephemeral` cannot host, and no engine or `publish` uploads implicitly.
 
 ## 12. Extend with a new engine

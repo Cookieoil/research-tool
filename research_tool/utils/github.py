@@ -1,7 +1,7 @@
 """Publish research output to GitHub (repository + GitHub Pages).
 
-The toolkit keeps its output on disk: ``data/reports/`` holds raw findings and
-``data/papers/`` holds finalized papers. This module is an *opt-in* bridge that
+The toolkit keeps its output on disk: ``data/raw/`` holds raw findings and
+``papers/`` holds finalized papers. This module is an *opt-in* bridge that
 **hosts** that output on GitHub - it builds a small static site from the reports
 (and papers), commits it to a repository and serves it through GitHub Pages.
 
@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import base64
 import json
+import math
 import os
 import re
 import subprocess
@@ -45,6 +46,8 @@ TOKEN_ENV_VARS = ("RESEARCH_GITHUB_TOKEN", "GH_TOKEN", "GITHUB_TOKEN")
 # Report/paper files that can be hosted. ``.enc`` blobs are never published.
 REPORT_EXTS = {".md", ".markdown", ".json", ".pdf", ".xlsx"}
 PAPER_EXTS = {".md", ".markdown", ".json", ".pdf"}
+# Library folders that are machinery, not shelves: never collected as papers.
+MACHINE_SHELVES = {"_meta", "pdfs"}
 
 
 class GitHubError(RuntimeError):
@@ -155,6 +158,263 @@ def _table_html(header: list[str], body: list[list[str]]) -> str:
     return "".join(parts)
 
 
+# Fenced chart blocks (see reporters/charts.py) are rendered on the hosted site
+# as accessible tables, heat-shaded for the intensity matrix, so no page shows
+# raw fence syntax.
+_CHART_LANGS = frozenset({"chart-bars", "chart-line", "chart-heatmap",
+                          "chart-stats", "chart-timeline"})
+_NUMBER_RE = re.compile(r"^-?\d+(?:[.,]\d+)?%?$")
+
+
+def _chart_shade(fraction: float) -> str:
+    """Blend white towards the accent colour for a 0..1 intensity."""
+    fraction = max(0.0, min(1.0, fraction))
+    red = round(255 - (255 - 11) * fraction)
+    green = round(255 - (255 - 61) * fraction)
+    blue = round(255 - (255 - 107) * fraction)
+    return f"#{red:02x}{green:02x}{blue:02x}"
+
+
+def _svg_axis(value: float) -> tuple[float, list[float]]:
+    """Friendly axis maximum and round ticks for the site charts."""
+    if value <= 0:
+        return 1.0, [0.0, 0.25, 0.5, 0.75, 1.0]
+    steps = (0.5, 1, 2, 2.5, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000)
+    best: tuple[float, int, float, float] | None = None
+    for step in steps:
+        top = step * math.ceil(value / step - 1e-9)
+        ticks = int(round(top / step))
+        if not (3 <= ticks <= 6):
+            continue
+        headroom = top / value
+        if best is None or headroom < best[0] - 1e-9 or (
+                abs(headroom - best[0]) < 1e-9 and ticks > best[1]):
+            best = (headroom, ticks, step, top)
+    if best is None:
+        step = steps[-1]
+        top = step * math.ceil(value / step)
+    else:
+        _headroom, _count, step, top = best
+    count = int(round(top / step))
+    return float(top), [step * index for index in range(count + 1)]
+
+
+def _truncate(text: str, limit: int) -> str:
+    text = str(text)
+    return text if len(text) <= limit else text[: limit - 1].rstrip() + "…"
+
+
+def _svg_bars(rows: list[list[str]], *, suffix: str, benchmark: float | None,
+              label_limit: int = 26) -> str:
+    """Horizontal bar chart as inline SVG (no script, scales to its column)."""
+    pairs = [(str(row[0]), float(str(row[1]).rstrip("%")))
+             for row in rows
+             if len(row) > 1 and _NUMBER_RE.match(row[1].strip())]
+    if not pairs:
+        return ""
+    width, bar_h, gap, left, right = 560, 16, 7, 168, 52
+    plot = width - left - right
+    top_value = max([value for _label, value in pairs]
+                    + ([benchmark] if benchmark else []))
+    axis_max, ticks = _svg_axis(top_value)
+    plot_height = len(pairs) * (bar_h + gap)
+    height = plot_height + 26
+    parts = [f'<svg class="chart" viewBox="0 0 {width} {height}" width="100%" '
+             f'role="img">']
+    for tick in ticks:
+        x = left + plot * (tick / axis_max)
+        parts.append(f'<line x1="{x:.1f}" y1="0" x2="{x:.1f}" '
+                     f'y2="{plot_height}" class="grid"/>')
+        parts.append(f'<text x="{x:.1f}" y="{height - 8}" class="axis" '
+                     f'text-anchor="middle">{tick:g}</text>')
+    if benchmark is not None:
+        x = left + plot * (benchmark / axis_max)
+        parts.append(f'<line x1="{x:.1f}" y1="0" x2="{x:.1f}" '
+                     f'y2="{plot_height}" class="bench"/>')
+        parts.append(f'<text x="{x:.1f}" y="10" class="bench-label" '
+                     f'text-anchor="middle">baseline {benchmark:g}</text>')
+    for index, (label, value) in enumerate(pairs):
+        y = index * (bar_h + gap)
+        bar = plot * (value / axis_max)
+        parts.append(f'<text x="{left - 8}" y="{y + bar_h - 4}" class="label" '
+                     f'text-anchor="end">'
+                     f'{_esc(_truncate(label, label_limit))}</text>')
+        parts.append(f'<rect x="{left}" y="{y}" width="{bar:.1f}" '
+                     f'height="{bar_h}" fill="#0b3d6b"/>')
+        parts.append(f'<text x="{left + bar + 6:.1f}" y="{y + bar_h - 4}" '
+                     f'class="value">{value:g}{_esc(suffix)}</text>')
+    parts.append("</svg>")
+    return "".join(parts)
+
+
+
+def _svg_line(header: list[str], rows: list[list[str]], *, invert: bool,
+              suffix: str) -> str:
+    """Annotated trend line as inline SVG (markers plus direct value labels)."""
+    labels = [str(row[0]) for row in rows]
+    series: list[tuple[str, list[float]]] = []
+    for column in range(1, min(3, len(header))):
+        values: list[float] = []
+        for row in rows:
+            cell = row[column] if column < len(row) else ""
+            if not _NUMBER_RE.match(cell.strip()):
+                values = []
+                break
+            values.append(float(cell.strip().rstrip("%")))
+        if values:
+            series.append((str(header[column]), values))
+    if not series:
+        return ""
+    width, height = 560, 210
+    left, right, top, bottom = 40, 96, 26, 30
+    plot_w, plot_h = width - left - right, height - top - bottom
+    flat = [value for _name, values in series for value in values]
+    axis_max, ticks = _svg_axis(max(flat) * 1.04)
+
+    def px(index: int) -> float:
+        if len(labels) == 1:
+            return left + plot_w / 2
+        return left + plot_w * index / (len(labels) - 1)
+
+    def py(value: float) -> float:
+        fraction = value / axis_max if axis_max else 0.0
+        if invert:
+            fraction = 1 - fraction
+        return top + plot_h * (1 - fraction)
+
+    colours = ("#0b3d6b", "#b06a00")
+    parts = [f'<svg class="chart" viewBox="0 0 {width} {height}" width="100%" '
+             f'role="img">']
+    for tick in ticks:
+        y = py(tick)
+        parts.append(f'<line x1="{left}" y1="{y:.1f}" x2="{left + plot_w}" '
+                     f'y2="{y:.1f}" class="grid"/>')
+        parts.append(f'<text x="{left - 6}" y="{y + 3:.1f}" class="axis" '
+                     f'text-anchor="end">{tick:g}</text>')
+    for index, label in enumerate(labels):
+        parts.append(f'<text x="{px(index):.1f}" y="{height - 10}" '
+                     f'class="axis" text-anchor="middle">'
+                     f'{_esc(_truncate(label, 14))}</text>')
+    for series_index, (name, values) in enumerate(series):
+        colour = colours[series_index % len(colours)]
+        points = " ".join(f"{px(index):.1f},{py(value):.1f}"
+                          for index, value in enumerate(values))
+        parts.append(f'<polyline points="{points}" fill="none" '
+                     f'stroke="{colour}" stroke-width="2"/>')
+        for index, value in enumerate(values):
+            x, y = px(index), py(value)
+            parts.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="3.4" '
+                         f'fill="#ffffff" stroke="{colour}" '
+                         f'stroke-width="1.8"/>')
+            parts.append(f'<text x="{x:.1f}" y="{y - 8:.1f}" class="value" '
+                         f'text-anchor="middle">{value:g}{_esc(suffix)}</text>')
+        legend_y = 12 + series_index * 14
+        parts.append(f'<line x1="{width - 92}" y1="{legend_y}" '
+                     f'x2="{width - 76}" y2="{legend_y}" stroke="{colour}" '
+                     f'stroke-width="2"/>')
+        parts.append(f'<text x="{width - 72}" y="{legend_y + 4}" class="axis">'
+                     f'{_esc(_truncate(name, 16))}</text>')
+    parts.append("</svg>")
+    return "".join(parts)
+
+
+
+def _chart_fence_html(language: str, lines: list[str]) -> str:
+    """Render a chart fence as an HTML table with title, note and caption."""
+    options: dict[str, str] = {}
+    header: list[str] = []
+    rows: list[list[str]] = []
+    headerless = language in ("chart-stats", "chart-timeline")
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if not stripped.startswith("|"):
+            if ":" in stripped:
+                key, value = stripped.split(":", 1)
+                key = key.strip().lower()
+                if not rows or key in ("caption", "note", "title", "suffix",
+                                       "invert", "benchmark", "columns",
+                                       "scale"):
+                    options[key] = value.strip()
+            continue
+        cells = _split_row(stripped)
+        if all(set(cell) <= set("-: ") for cell in cells):
+            continue
+        if headerless:
+            rows.append(cells)
+        elif not header:
+            header = cells
+        else:
+            rows.append(cells)
+
+    parts: list[str] = []
+    title = options.get("title")
+    suffix = options.get("suffix", "")
+    invert = str(options.get("invert", "")).strip().lower() in ("true", "1",
+                                                               "yes", "on")
+    benchmark = (float(options["benchmark"].rstrip("%"))
+                 if options.get("benchmark")
+                 and _NUMBER_RE.match(options["benchmark"].strip()) else None)
+
+    if language == "chart-bars" and rows:
+        if title:
+            parts.append(f"<p><strong>{_inline(title)}</strong></p>")
+        parts.append(_svg_bars(rows, suffix=suffix, benchmark=benchmark))
+    elif language == "chart-line" and rows:
+        if title:
+            parts.append(f"<p><strong>{_inline(title)}</strong></p>")
+        parts.append(_svg_line(header, rows, invert=invert, suffix=suffix))
+    else:
+        if title:
+            parts.append(f"<p><strong>{_inline(title)}</strong></p>")
+        if header:
+            parts.append("<table><thead><tr>"
+                         + "".join(f"<th>{_inline(cell)}</th>"
+                                   for cell in header)
+                         + "</tr></thead><tbody>")
+        else:
+            parts.append("<table><tbody>")
+        scale = 1.0
+        if language == "chart-heatmap":
+            for row in rows:
+                for cell in row[1:]:
+                    if _NUMBER_RE.match(cell.strip()):
+                        scale = max(scale, float(cell.strip().rstrip("%")))
+        for row in rows:
+            cells_html: list[str] = []
+            for index, cell in enumerate(row):
+                style = ""
+                stripped = cell.strip()
+                if (language == "chart-heatmap" and index
+                        and _NUMBER_RE.match(stripped)):
+                    fraction = (float(stripped.rstrip("%")) / scale
+                                if scale else 0)
+                    style = (f' style="background:{_chart_shade(fraction)};'
+                             'text-align:center"')
+                elif (language == "chart-stats" and index == 0):
+                    style = ' style="font-size:1.25em;font-weight:600;color:#0b3d6b;text-align:center"'
+                elif language == "chart-timeline" and index == 0:
+                    cell = "● " + str(cell)
+                cells_html.append(f"<td{style}>{_inline(cell)}</td>")
+            parts.append("<tr>" + "".join(cells_html) + "</tr>")
+        if language == "chart-heatmap" and scale:
+            legend = "".join(
+                f'<span style="display:inline-block;width:14px;height:10px;'
+                f'background:{_chart_shade(step / 4)};margin-right:4px"></span>'
+                f'{round(scale * step / 4):g}'
+                for step in range(5))
+            parts.append(f'<tr><td colspan="{max(1, len(header))}" '
+                         f'style="border:none;font-size:.85em;color:#57606a">'
+                         f'Scale: {legend}</td></tr>')
+        parts.append("</tbody></table>")
+    if options.get("note"):
+        parts.append(f"<p><em>{_inline(options['note'])}</em></p>")
+    if options.get("caption"):
+        parts.append(f'<p class="legend">{_inline(options["caption"])}</p>')
+    return "\n".join(parts)
+
+
 def markdown_to_html(text: str) -> str:
     """Convert the toolkit's Markdown subset to a safe HTML fragment."""
     lines = str(text).replace("\r\n", "\n").split("\n")
@@ -178,10 +438,14 @@ def markdown_to_html(text: str) -> str:
 
         if stripped.startswith("```"):
             if code_open:
-                cls = (f' class="language-{_esc_attr(code_lang)}"'
-                       if code_lang else "")
-                out.append(
-                    f"<pre><code{cls}>{_esc(chr(10).join(code_buf))}</code></pre>")
+                if code_lang in _CHART_LANGS:
+                    out.append(_chart_fence_html(code_lang, code_buf))
+                else:
+                    cls = (f' class="language-{_esc_attr(code_lang)}"'
+                           if code_lang else "")
+                    out.append(
+                        f"<pre><code{cls}>"
+                        f"{_esc(chr(10).join(code_buf))}</code></pre>")
                 code_open, code_lang, code_buf = False, "", []
             else:
                 close_list()
@@ -280,6 +544,13 @@ code { background: #eff1f3; padding: .1rem .3rem; border-radius: 4px; font-size:
 pre { background: #f6f8fa; padding: .8rem; border-radius: 8px; overflow-x: auto; }
 pre code { background: none; padding: 0; }
 blockquote { margin: 1rem 0; padding: .3rem 1rem; border-left: 4px solid #d0d7de; color: #57606a; }
+svg.chart { display: block; margin: .6rem 0 .35rem; max-width: 100%; height: auto; }
+svg.chart .grid { stroke: #dde3e9; stroke-width: 1; stroke-dasharray: 2 3; }
+svg.chart .axis { fill: #8a97a3; font: 11px -apple-system, Segoe UI, Roboto, sans-serif; }
+svg.chart .label { fill: #1f2328; font: 11.5px -apple-system, Segoe UI, Roboto, sans-serif; }
+svg.chart .value { fill: #1f2328; font: 600 11px -apple-system, Segoe UI, Roboto, sans-serif; }
+svg.chart .bench { stroke: #b06a00; stroke-width: 1.2; stroke-dasharray: 5 4; }
+svg.chart .bench-label { fill: #b06a00; font: 10px -apple-system, Segoe UI, Roboto, sans-serif; }
 .pill { display: inline-block; padding: .05rem .5rem; border-radius: 999px;
         font-size: .78rem; font-weight: 600; }
 .risk-NONE, .risk-LOW { background: #dafbe1; color: #1a7f37; }
@@ -448,8 +719,14 @@ def _row_html(row: dict[str, Any]) -> str:
 
 def build_index_html(entries: Iterable[dict[str, Any]], *, title: str,
                      generated_at: datetime | None = None,
-                     subtitle: str = "") -> str:
-    """Build the landing page: tabbed sections, one row per hosted item."""
+                     subtitle: str = "",
+                     extra_pages: Iterable[str] = ()) -> str:
+    """Build the landing page: tabbed sections, one row per hosted item.
+
+    ``extra_pages`` are hand-authored HTML pages that already live in the site
+    folder (for example the Vietnam series dashboard); they are linked from the
+    navigation so nothing in ``docs/`` is orphaned by a rebuild.
+    """
     stamp = (generated_at or datetime.utcnow()).strftime("%Y-%m-%d %H:%M UTC")
     rows = _merge_entries(_sorted_entries(entries))
     sections = _sections(rows)
@@ -461,8 +738,13 @@ def build_index_html(entries: Iterable[dict[str, Any]], *, title: str,
         f"generated {_esc(stamp)}.</p>",
         '<p class="legend">Papers are finalized, reviewed write-ups · '
         "reports are raw engine output · source documents are the inputs "
-        "imported into <code>data/reports/</code>.</p>",
+        "imported into <code>data/sources/</code>.</p>",
     ]
+    pages = [str(page) for page in extra_pages]
+    if pages:
+        links = " · ".join(
+            f'<a href="{_esc_attr(page)}">{_esc(page)}</a>' for page in pages)
+        body.append(f'<p class="legend">Also in this site: {links}</p>')
     if tabs:
         body.append(f'<nav class="tabs">{tabs}</nav>')
     for label, anchor, items in sections:
@@ -508,8 +790,8 @@ def build_index_markdown(entries: Iterable[dict[str, Any]], *, title: str,
         lines.append("")
     lines += ["Papers are finalized, reviewed write-ups; reports are raw "
               "engine output; source documents are the inputs imported into "
-              "`data/reports/`. Organisation rules: "
-              "`data/papers/ORGANISATION.md`.", ""]
+              "`data/sources/`. Organisation rules: "
+              "`papers/ORGANISATION.md`.", ""]
     return "\n".join(lines)
 
 
@@ -897,7 +1179,7 @@ class ReportHost:
             page = (f"reports/{path.stem}.html"
                     if suffix in (".md", ".markdown", ".json") else None)
             # Engine output is always written as ``report_<slug>``; anything
-            # else dropped into ``data/reports/`` is a source document (an
+            # else dropped into ``data/raw/`` is a source document (an
             # imported PDF, a vendor deck, ...) and gets its own section.
             kind = "report" if path.stem.lower().startswith("report_") else "source"
             entry = _base_entry(path, kind, page, rel)
@@ -923,6 +1205,8 @@ class ReportHost:
         for shelf in sorted(root.iterdir()):
             if not shelf.is_dir() or shelf.name.startswith("_"):
                 continue
+            if shelf.name in MACHINE_SHELVES:
+                continue
             for path in shelf.iterdir():
                 if not path.is_file() or path.name.endswith(".meta.json"):
                     continue
@@ -939,7 +1223,11 @@ class ReportHost:
             page = (f"papers/{shelf}/{path.stem}.html"
                     if suffix in (".md", ".markdown", ".json") else None)
             entry = _base_entry(path, "paper", page, rel)
-            meta_path = path.with_name(path.stem + ".meta.json")
+            # Catalogue records live in _meta/<shelf>/; older libraries kept
+            # them beside the document, so check both (newest layout first).
+            meta_path = root / "_meta" / shelf / (path.stem + ".meta.json")
+            if not meta_path.exists():
+                meta_path = path.with_name(path.stem + ".meta.json")
             if meta_path.exists():
                 _enrich_from_paper_meta(entry, meta_path)
             if suffix == ".json":
@@ -1043,13 +1331,31 @@ class ReportHost:
                 written.append(page_path)
             entries.append(item.entry)
         title = "Research Reports & Papers"
+        # Hand-authored pages that already live in the site folder (e.g. the
+        # Vietnam series dashboard) are linked from the landing page so a
+        # rebuild never orphans them.
+        extra_pages = sorted(
+            page.name for page in site.glob("*.html")
+            if page.name != "index.html" and page not in written)
         (site / "index.html").write_text(
-            build_index_html(entries, title=title, subtitle=self._subtitle()),
+            build_index_html(entries, title=title, subtitle=self._subtitle(),
+                             extra_pages=extra_pages),
             encoding="utf-8")
         written.append(site / "index.html")
         (site / "README.md").write_text(
             build_index_markdown(entries, title=title), encoding="utf-8")
         written.append(site / "README.md")
+        # Prune files this run did not write so the site never keeps showing a
+        # paper that has been archived or removed from the library.
+        written_set = set(written)
+        for subtree in (site / "reports", site / "papers"):
+            if not subtree.is_dir():
+                continue
+            for stale in sorted(subtree.rglob("*"), reverse=True):
+                if stale.is_file() and stale not in written_set:
+                    stale.unlink(missing_ok=True)
+                elif stale.is_dir() and not any(stale.iterdir()):
+                    stale.rmdir()
         logger.info("[github] built site with {} item(s) in {}",
                     len(entries), site)
         return SiteBuild(site, entries, written)
@@ -1201,5 +1507,5 @@ __all__ = [
     "markdown_to_html", "html_document", "build_index_html",
     "build_index_markdown", "resolve_token", "pages_url", "repo_slug",
     "git_available", "git_remote_url", "GITHUB_API", "DEFAULT_SITE_DIR",
-    "TOKEN_ENV_VARS", "REPORT_EXTS", "PAPER_EXTS",
+    "TOKEN_ENV_VARS", "REPORT_EXTS", "PAPER_EXTS", "MACHINE_SHELVES",
 ]

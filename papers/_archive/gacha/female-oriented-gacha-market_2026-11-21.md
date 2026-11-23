@@ -1,6 +1,6 @@
 # The Female-Oriented Gacha Market: Latent Demand and Failure Modes
 
-> **FINALIZED RESEARCH PAPER** · Paper ID `female-oriented-gacha-market_2026-11-21_v2` · Status **FINAL** · Topic shelf `gacha`
+> **FINALIZED RESEARCH PAPER** · Paper ID `female-oriented-gacha-market_2026-11-21` · Status **FINAL** · Topic shelf `gacha`
 
 | Document control | Value |
 |---|---|
@@ -9,13 +9,13 @@
 | Topic shelf | `gacha` |
 | Status | FINAL |
 | Author / analyst | None-Bias Research Agent |
-| Published (UTC) | 2026-11-21 19:18 |
+| Published (UTC) | 2026-11-21 19:17 |
 | Engines run | desk_research, survey_research, market_data, peer_reviewed, press_reporting, analyst_assessment |
 | Findings | 46 |
 | Sources cited | 25 |
 | Risk score | 0/100 (NONE) |
 | Tags | gacha, gender, demographics, market, monetisation, case-study, china, japan |
-| Library file(s) | `gacha/female-oriented-gacha-market_2026-11-21_v2.md`, `gacha/female-oriented-gacha-market_2026-11-21_v2.pdf`, `gacha/female-oriented-gacha-market_2026-11-21_v2.json` |
+| Library file(s) | `gacha/female-oriented-gacha-market_2026-11-21.md`, `gacha/female-oriented-gacha-market_2026-11-21.pdf`, `gacha/female-oriented-gacha-market_2026-11-21.json` |
 
 ## Abstract
 
@@ -147,8 +147,8 @@ The 46 finding(s) are grouped by category below. `F#` is the finding identifier 
 **F15 — Riot's 97% is a League-specific outlier**
 
 - *Engine:* `market_data` · *category:* `demand: mechanisms` · *confidence:* 0.60 (moderate)
-- *Source:* <https://www.invenglobal.com/articles/17395/riot-97-of-female-league-of-legends-players-only-play-female-champions>
-- *Detail:* Riot lead gameplay producer Ryan 'Reav3' Mireles, responding to a player complaint in June 2022, said: 'Our data shows that female players primarily play female champions, in fact, it's something like 97% of female players only play female champions. Male players are evenly split... If anything, whenever we make a male champion, we are abandoning most of our female players.' Caveat: internal, unpublished, hedged ('something like'), and measured as 'only play' in a game where most players main a small champion pool. It is an outlier against the WoW (23%/7%) and Quantic (29%/9%) figures. Reading: directional evidence that League's female players strongly prefer female champions, not a general law about women in games.
+- *Source:* <https://www.invenglobal.com/articles/17395/riot-97-of-female-league-of-legends-players-only-play-female->
+- *Detail:* Riot lead gameplay producer Ryan 'Reav3' Mireles, responding to a player complaint in June 2022, said: 'Our data shows that female players primarily play female champions, in fact, it's something like 97% of female players only play female champions. Male players are evenly split... If anything, whenever we make a male champion, we are abandoning most of our female players.' Caveat: internal, unpublished, hedged ('something like'), and measured as 'only play' in a game where most players main a small champion pool. It is an outlier against the WoW (23%/7%) and Quantic (29%/9%) figures. Reading: directional evidence that League's female players strongly prefer female champions, not a general law about women in games. champions
 
 **F16 — Games systematically over-represent men**
 
@@ -159,8 +159,8 @@ The 46 finding(s) are grouped by category below. `F#` is the finding identifier 
 **F17 — Female protagonists matter more to women than to men**
 
 - *Engine:* `survey_research` · *category:* `demand: mechanisms` · *confidence:* 0.75 (moderate)
-- *Source:* <https://www.gamedeveloper.com/business/for-most-women-and-girls-female-protagonists-matter-says-survey>
-- *Detail:* Quantic Foundry asked 1,266 gamers to rate 'having the option to play a female protagonist' on a five-point scale. 75% of female players rated it very or extremely important, against about 33% of male players; the share choosing 'extremely important' was roughly triple among women (reported by Game Developer, 30 August 2017). Reading: this is asymmetry in importance, not just in behaviour - women are not merely picking female avatars more often, they report the option as mattering more. Caveat: self-selected online survey from 2017, and the question asks about the availability of the option rather than forcing a choice.
+- *Source:* <https://www.gamedeveloper.com/business/for-most-women-and-girls-female-protagonists-matter-says-sur>
+- *Detail:* Quantic Foundry asked 1,266 gamers to rate 'having the option to play a female protagonist' on a five-point scale. 75% of female players rated it very or extremely important, against about 33% of male players; the share choosing 'extremely important' was roughly triple among women (reported by Game Developer, 30 August 2017). Reading: this is asymmetry in importance, not just in behaviour - women are not merely picking female avatars more often, they report the option as mattering more. Caveat: self-selected online survey from 2017, and the question asks about the availability of the option rather than forcing a choice. vey
 
 **F18 — Content analysis: female leads are common, but often sexualised**
 
@@ -428,7 +428,7 @@ The 46 finding(s) are grouped by category below. `F#` is the finding identifier 
 
 - *Engine:* `survey_research` · *category:* `limits and counter-evidence` · *confidence:* 0.60 (moderate)
 - *Source:* <https://blgamesworld.net/2022/03/27/bl-gamer-survey-results/>
-- *Detail:* BL Games World's January 2022 survey (629 valid responses, recruited via Twitter and Reddit including r/gaymers) found 37.5% male, about 43% female and about 20% gender-non-conforming respondents; 25% of all respondents were gay men, and the author notes the male share was higher than the 'usual 25%-ish' in their BL surveys. Otome estimates are lower and weakly sourced (roughly 5-12% male). Reading: the barrier is not the female-oriented label but the female romantic subject position - BL removes the female MC and lets players observe male-male romance, and men (mostly gay or bisexual) enter in large numbers. Caveat: self-selected survey publicised in gay/BL communities, so it likely overstates the male share of BL players overall. 3. Risk assessment Risk score: 0/100 (NONE). Not applicable. This paper analyses a market and a player population, not an individual or organisation, so the toolkit's 0-100 adverse-signal score has no subject to assess; 0 records that no such assessment was in scope, not that the games or their monetisation are risk-free. The consumer-protection concerns that are relevant are discussed under 'Critical considerations' in section 2. 4. Source register S1. https://www.gamesindustry.biz/esa-48-of-video-game-players-are-women S2. https://kultur.jp/entertainment-average-ages-mtf-ratio S3. https://www.blog.udonis.co/mobile-marketing/mobile-games/genshin-impact-advertising S4. https://www.famitsu.com/news/202312/13327628.html S5. https://doi.org/10.1177/1461444812458271 S6. https://doi.org/10.1016/j.chb.2013.07.014 S7. https://doi.org/10.1089/cpb.2006.9.772 S8. https://www.pockettactics.com/honkai-star-rail/phainon-banner-sales S9. https://en.wikipedia.org/wiki/Kaedehara_Kazuha S10. https://doi.org/10.17645/mac.8662 S11. https://en.wikipedia.org/wiki/Waifu S12. https://www.concordia.ca/cunews/main/releases/2014/05/06/video-game-avataar.html S13. https://www.invenglobal.com/articles/17395/riot-97-of-female-league-of-legends-players-only-play-fe male-champions S14. https://doi.org/10.1177/1461444809105354 S15. https://www.gamedeveloper.com/business/for-most-women-and-girls-female-protagonists-matter-say s-survey S16. https://doi.org/10.1007/s11199-006-9158-0 S17. https://doi.org/10.1177/0361684314553578 S18. https://doi.org/10.17011/ht/urn.201911265024 S19. https://kr-asia.com/women-power-chinas-usd-1-billion-romance-gaming-market S20. https://en.wikipedia.org/wiki/Love_and_Deepspace S21. https://doi.org/10.34135/actaludologica.2025-8-2.126-141 S22. https://doi.org/10.3389/fpsyt.2022.940281 S23. https://blgamesworld.net/2022/03/27/bl-gamer-survey-results/ 5. Limitations and confidence No probability sample of gacha players by gender exists in the public domain; every headline percentage is a national consumer survey, a publisher/platform estimate or a community count. Riot's 97% is a League-specific, unpublished outlier against 23%/7% (WoW, N=375) and 29%/9% (Quantic Foundry, 2021); store-model estimates (Sensor Tower, AppMagic) are likewise unaudited. The GEM Partners survey measures series fans rather than active players, and Japan is an unusually anime-literate market; the global Genshin split (~40% female) rests on secondary reporting. Community evidence (forum threads, cosplay scenes) is anecdotal and self-selected; it is used only to illustrate mechanisms supported by other sources. Sexualisation research is mixed: self-objectification harms are documented alongside evidence that women choose sexualised avatars. This paper does not adjudicate that debate. Love and Deepspace revenue is reported differently by different trackers and cut-off dates (and usually excludes Chinese Android stores), so only its order of magnitude and trend are relied on here. No public dataset cross-tabulates gacha players' avatar gender with their spending on male versus female characters; the avatar/collectible distinction in this paper is an inference from separate literatures, not a measured joint distribution. Female-oriented games are heterogeneous: otome estimates run roughly 5-12% male, BL surveys 25-37.5%, and community reports for dress-up titles 15-21%; the 95-98% figures describe the idol and sword-boy franchises in the GEM survey, not all female-oriented games. 6. Provenance Paper ID: why-women-play-male-oriented-gacha-games_2026-11-21_v6 | Status: FINAL | Report generated: 2026-11-21 10:42 | Raw report: data\reports\report_why-women-play-male-oriented-gacha-games.json
+- *Detail:* BL Games World's January 2022 survey (629 valid responses, recruited via Twitter and Reddit including r/gaymers) found 37.5% male, about 43% female and about 20% gender-non-conforming respondents; 25% of all respondents were gay men, and the author notes the male share was higher than the 'usual 25%-ish' in their BL surveys. Otome estimates are lower and weakly sourced (roughly 5-12% male). Reading: the barrier is not the female-oriented label but the female romantic subject position - BL removes the female MC and lets players observe male-male romance, and men (mostly gay or bisexual) enter in large numbers. Caveat: self-selected survey publicised in gay/BL communities, so it likely overstates the male share of BL players overall. 3. Risk assessment Risk score: 0/100 (NONE). Not applicable. This paper analyses a market and a player population, not an individual or organisation, so the toolkit's 0-100 adverse-signal score has no subject to assess; 0 records that no such assessment was in scope, not that the games or their monetisation are risk-free. The consumer-protection concerns that are relevant are discussed under 'Critical considerations' in section 2. 4. Source register S1. https://www.gamesindustry.biz/esa-48-of-video-game-players-are-womenS2. https://kultur.jp/entertainment-average-ages-mtf-ratioS3. https://www.blog.udonis.co/mobile-marketing/mobile-games/genshin-impact-advertisingS4. https://www.famitsu.com/news/202312/13327628.htmlS5. https://doi.org/10.1177/1461444812458271S6. https://doi.org/10.1016/j.chb.2013.07.014S7. https://doi.org/10.1089/cpb.2006.9.772S8. https://www.pockettactics.com/honkai-star-rail/phainon-banner-salesS9. https://en.wikipedia.org/wiki/Kaedehara_KazuhaS10. https://doi.org/10.17645/mac.8662S11. https://en.wikipedia.org/wiki/WaifuS12. https://www.concordia.ca/cunews/main/releases/2014/05/06/video-game-avataar.htmlS13. https://www.invenglobal.com/articles/17395/riot-97-of-female-league-of-legends-players-only-play-female-champions S14. https://doi.org/10.1177/1461444809105354S15. https://www.gamedeveloper.com/business/for-most-women-and-girls-female-protagonists-matter-says-survey S16. https://doi.org/10.1007/s11199-006-9158-0S17. https://doi.org/10.1177/0361684314553578S18. https://doi.org/10.17011/ht/urn.201911265024S19. https://kr-asia.com/women-power-chinas-usd-1-billion-romance-gaming-marketS20. https://en.wikipedia.org/wiki/Love_and_DeepspaceS21. https://doi.org/10.34135/actaludologica.2025-8-2.126-141S22. https://doi.org/10.3389/fpsyt.2022.940281S23. https://blgamesworld.net/2022/03/27/bl-gamer-survey-results/5. Limitations and confidence No probability sample of gacha players by gender exists in the public domain; every headline percentage is a national consumer survey, a publisher/platform estimate or a community count. Riot's 97% is a League-specific, unpublished outlier against 23%/7% (WoW, N=375) and 29%/9% (Quantic Foundry, 2021); store-model estimates (Sensor Tower, AppMagic) are likewise unaudited. The GEM Partners survey measures series fans rather than active players, and Japan is an unusually anime-literate market; the global Genshin split (~40% female) rests on secondary reporting. Community evidence (forum threads, cosplay scenes) is anecdotal and self-selected; it is used only to illustrate mechanisms supported by other sources. Sexualisation research is mixed: self-objectification harms are documented alongside evidence that women choose sexualised avatars. This paper does not adjudicate that debate. Love and Deepspace revenue is reported differently by different trackers and cut-off dates (and usually excludes Chinese Android stores), so only its order of magnitude and trend are relied on here. No public dataset cross-tabulates gacha players' avatar gender with their spending on male versus female characters; the avatar/collectible distinction in this paper is an inference from separate literatures, not a measured joint distribution. Female-oriented games are heterogeneous: otome estimates run roughly 5-12% male, BL surveys 25-37.5%, and community reports for dress-up titles 15-21%; the 95-98% figures describe the idol and sword-boy franchises in the GEM survey, not all female-oriented games. 6. Provenance Paper ID: why-women-play-male-oriented-gacha-games_2026-11-21_v6 | Status: FINAL | Report generated: 2026-11-21 10:42 | Raw report: data\reports\report_why-women-play-male-oriented-gacha-games.json
 
 ## 3. Risk assessment
 
@@ -452,9 +452,9 @@ Findings by engine: `survey_research` (6), `market_data` (10), `press_reporting`
 | S10 | <https://doi.org/10.17645/mac.8662> | F12 |
 | S11 | <https://en.wikipedia.org/wiki/Waifu> | F13 |
 | S12 | <https://www.concordia.ca/cunews/main/releases/2014/05/06/video-game-avataar.html> | F14 |
-| S13 | <https://www.invenglobal.com/articles/17395/riot-97-of-female-league-of-legends-players-only-play-female-champions> | F15 |
+| S13 | <https://www.invenglobal.com/articles/17395/riot-97-of-female-league-of-legends-players-only-play-female-> | F15 |
 | S14 | <https://doi.org/10.1177/1461444809105354> | F16 |
-| S15 | <https://www.gamedeveloper.com/business/for-most-women-and-girls-female-protagonists-matter-says-survey> | F17 |
+| S15 | <https://www.gamedeveloper.com/business/for-most-women-and-girls-female-protagonists-matter-says-sur> | F17 |
 | S16 | <https://doi.org/10.1007/s11199-006-9158-0> | F18 |
 | S17 | <https://doi.org/10.1177/0361684314553578> | F19 |
 | S18 | <https://doi.org/10.17011/ht/urn.201911265024> | F20 |
@@ -481,9 +481,9 @@ Findings by engine: `survey_research` (6), `market_data` (10), `press_reporting`
 
 ## 6. Provenance
 
-- **Paper ID:** `female-oriented-gacha-market_2026-11-21_v2`
+- **Paper ID:** `female-oriented-gacha-market_2026-11-21`
 - **Status:** FINAL
-- **Report generated (UTC):** 2026-11-21 19:18
+- **Report generated (UTC):** 2026-11-21 19:17
 - **Raw report:** `data\reports\report_female-oriented-gacha-market.json`
-- **Library rules:** `data/papers/ORGANISATION.md`
-- **Library index:** `data/papers/INDEX.md`
+- **Library rules:** `data/reports/ORGANISATION.md`
+- **Library index:** `data/reports/INDEX.md`

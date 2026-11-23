@@ -1,4 +1,10 @@
-"""PDF report writer built on reportlab."""
+"""PDF report writer (raw reports) built on the academic typesetting engine.
+
+A raw report answers "what did the engines find?". It is typeset with the same
+research-paper conventions as a finalized paper (title block, summary, a
+findings table, detail sections, source URLs) instead of dumping
+``engine=... | category=...`` debug strings into the page.
+"""
 
 from __future__ import annotations
 
@@ -9,77 +15,59 @@ from ..models.report import ResearchReport
 
 
 class PdfReporter:
-    def render_bytes(self, report: ResearchReport) -> bytes:
-        from io import BytesIO
+    """Render a raw :class:`ResearchReport` as a readable PDF."""
 
-        try:
-            from reportlab.lib.pagesizes import A4
-            from reportlab.lib.styles import getSampleStyleSheet
-            from reportlab.lib.units import cm
-            from reportlab.platypus import (Paragraph, SimpleDocTemplate,
-                                            Spacer)
-        except ImportError as exc:  # pragma: no cover
-            raise RuntimeError(
-                "reportlab is required for PDF output: pip install reportlab"
-            ) from exc
-
-        styles = getSampleStyleSheet()
-        buf = BytesIO()
-        doc = SimpleDocTemplate(buf, pagesize=A4,
-                                leftMargin=2 * cm, rightMargin=2 * cm,
-                                topMargin=2 * cm, bottomMargin=2 * cm)
-        story = [
-            Paragraph(f"Research Report: {_esc(report.target)}", styles["Title"]),
-            Spacer(1, 0.4 * cm),
-            Paragraph(
-                f"Target kind: {_esc(report.target_kind)} &nbsp;|&nbsp; "
-                f"Findings: {len(report.findings)} &nbsp;|&nbsp; "
-                f"Risk: {report.risk_score}/100 "
-                f"({RiskScorer.label(report.risk_score)})",
-                styles["Normal"],
-            ),
-            Paragraph(
-                f"Generated: {report.generated_at.isoformat()}Z",
-                styles["Normal"],
-            ),
-            Spacer(1, 0.5 * cm),
-        ]
-
+    def render_markdown(self, report: ResearchReport) -> str:
+        """Build the manuscript that the academic engine typesets."""
+        label = RiskScorer.label(report.risk_score)
+        lines: list[str] = [f"# Research Report: {report.target}", ""]
         if report.summary:
-            story.append(Paragraph("Summary", styles["Heading1"]))
-            story.append(Paragraph(_esc(report.summary), styles["BodyText"]))
-            story.append(Spacer(1, 0.4 * cm))
+            lines += ["## Summary", "", report.summary, ""]
+        if report.errors:
+            lines += ["## Collection notes", ""]
+            lines += [f"- {error}" for error in report.errors]
+            lines += [""]
+        lines += ["## Findings", ""]
+        if not report.findings:
+            lines += ["_No findings were recorded._", ""]
+            return "\n".join(lines)
+        lines += ["| # | Engine | Category | Confidence | Finding |",
+                  "|---|---|---|---:|---|"]
+        for number, finding in enumerate(report.findings, 1):
+            title = str(finding.title).replace("|", "\\|").replace("\n", " ")
+            category = str(finding.category).replace("|", "\\|")
+            lines.append(
+                f"| {number} | {finding.engine} | {category} | "
+                f"{finding.confidence:.2f} | {title} |")
+        lines += [""]
+        for number, finding in enumerate(report.findings, 1):
+            lines += [f"### {number}. {finding.title}", ""]
+            if finding.detail:
+                lines += [finding.detail, ""]
+            if finding.url:
+                lines += [f"<{finding.url}>", ""]
+        return "\n".join(lines)
 
-        story.append(Paragraph("Findings", styles["Heading1"]))
-        for i, f in enumerate(report.findings, 1):
-            story.append(Paragraph(
-                f"{i}. {_esc(f.title)}", styles["Heading3"]
-            ))
-            meta = f"engine={f.engine} | category={f.category} | confidence={f.confidence}"
-            story.append(Paragraph(_esc(meta), styles["Italic"]))
-            if f.detail:
-                story.append(Paragraph(_esc(f.detail), styles["BodyText"]))
-            if f.url:
-                story.append(Paragraph(_esc(f.url), styles["BodyText"]))
-            story.append(Spacer(1, 0.3 * cm))
+    def render_bytes(self, report: ResearchReport) -> bytes:
+        from .academic_pdf import render_manuscript
 
-        doc.build(story)
-        return buf.getvalue()
+        label = RiskScorer.label(report.risk_score)
+        meta_line = (
+            f"Target kind: {report.target_kind}  ·  "
+            f"Findings: {len(report.findings)}  ·  "
+            f"Risk: {report.risk_score}/100 ({label})  ·  "
+            f"Generated {report.generated_at:%Y-%m-%d %H:%M} UTC")
+        return render_manuscript(
+            self.render_markdown(report),
+            title=f"Research Report: {report.target}",
+            meta_line=meta_line,
+            header_right="RESEARCH REPORT",
+        )
 
     def write(self, report: ResearchReport, path: Path) -> Path:
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_bytes(self.render_bytes(report))
         return path
-
-
-def _esc(text: str) -> str:
-    """Escape minimal XML entities for reportlab paragraphs."""
-    return (
-        str(text)
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-    )
 
 
 __all__ = ["PdfReporter"]

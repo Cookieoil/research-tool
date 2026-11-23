@@ -44,6 +44,8 @@ Help a researcher gather, verify, and report on:
    `romanize()`/`normalize_text()`), and if something cannot be translated,
    say so explicitly instead of guessing or dumping the raw foreign text.
 
+8. **Output hygiene — no junk JSON in the raw reports folder.** `data/raw/` holds only intentional raw reports. Never leave the transient `report_*.json` files that ad-hoc `search … --format json` (or other one-off) runs create: for exploratory queries use `--ephemeral` (writes nothing) or delete the `report_*.json` immediately. Keep a report only if a paper references it (`source_report`) or it is a deliberate deliverable. The canonical library is the `papers/vietnam/` and `papers/gacha/` shelves.
+
 ## Toolkit Layout
 
 ```
@@ -56,8 +58,9 @@ research_tool/
 ├── reporters/          # Markdown / PDF / Excel / JSON output
 ├── models/             # Pydantic data models
 └── utils/              # Cache, validators, HTTP/proxy helpers, paper library
-data/reports/           # raw findings (transient)
-data/papers/            # finalized papers + INDEX.md + ORGANISATION.md
+papers/                 # finalized papers: <topic>/ + _meta/<topic>/ + pdfs/
+data/raw/               # raw engine output (purge target)
+data/sources/           # imported source documents
 ```
 
 ## How to Run
@@ -86,7 +89,7 @@ python -m research_tool full example.com --engines whois,domain_intel
 
 # Finalize reviewed research into the paper library
 python -m research_tool publish "Jane Doe" --engines search,academic --tags osint
-python -m research_tool publish --from data/reports/report_example.com.json --format markdown,pdf
+python -m research_tool publish --from data/raw/report_example.com.json --format markdown,pdf
 python -m research_tool papers --query "Jane Doe"
 ```
 
@@ -209,12 +212,12 @@ Two distinct output locations — **do not mix them up**:
 
 | Output | Written by | Location | Role |
 |---|---|---|---|
-| **Report** | any engine command with `--format markdown\|pdf\|excel\|json` | `data/reports/` | raw record of what the engines found |
-| **Paper** | `publish` (or `PaperLibrary.publish`) | `data/papers/` | reviewed, citable, indexed final deliverable |
+| **Report** | any engine command with `--format markdown\|pdf\|excel\|json` | `data/raw/` | raw record of what the engines found |
+| **Paper** | `publish` (or `PaperLibrary.publish`) | `papers/<topic>/` | reviewed, citable, indexed final deliverable |
 
 ### Reports (raw findings)
 
-Reports are written to `data/reports/` only when `--format` is passed. Every
+Reports are written to `data/raw/` only when `--format` is passed. Every
 report includes a 0–100 risk score (see `analyzers/risk_scorer.py`) and a
 summary. Treat reports as working data; they are covered by retention and
 `purge`.
@@ -222,21 +225,21 @@ summary. Treat reports as working data; they are covered by retention and
 ### Finalized papers (the deliverable)
 
 Only publish after reviewing a report. A paper follows the enforced layout
-and naming rules documented in `data/papers/ORGANISATION.md`:
+and naming rules documented in `papers/ORGANISATION.md`:
 
-- **Shelf:** `data/papers/<topic>/` where the default topic comes from the
+- **Shelf:** `papers/<topic>/` where the default topic comes from the
   target kind (`people`, `domains`, `organisations`), or `--topic <name>`.
 - **Paper ID:** `<target-slug>_<YYYY-MM-DD>[_vN]`; same-day re-publication
   versions instead of overwriting.
 - **Documents:** `.md` (primary), `.pdf`, `.json`, plus a required sibling
   `<paper-id>.meta.json` catalogue record.
-- **Index:** `data/papers/INDEX.md` and `INDEX.json` are auto-generated from
+- **Index:** `papers/INDEX.md` and `INDEX.json` are auto-generated from
   the records on every `publish`/`archive-paper`; never edit them by hand and
   never copy papers in manually (they would be invisible to `papers`).
 - **Lifecycle:** `draft` → `final` → `archived`. Superseded papers are moved
   with `python -m research_tool archive-paper <paper-id>` into
   `_archive/<topic>/` — never deleted if they were cited.
-- **Retention:** `purge` leaves `data/papers/` untouched unless
+- **Retention:** `purge` leaves `papers/` untouched unless
   `--include-papers` is explicit; `--ephemeral` cannot publish.
 - **Finding papers:** `python -m research_tool papers` with `--topic`,
   `--query`, `--status`, `--archived`.
@@ -244,7 +247,7 @@ and naming rules documented in `data/papers/ORGANISATION.md`:
 ```powershell
 python -m research_tool publish "Jane Doe" --engines search,academic `
     --tags osint,credential --topic people --status final
-python -m research_tool publish --from data/reports/report_example.com.json `
+python -m research_tool publish --from data/raw/report_example.com.json `
     --format markdown,pdf
 python -m research_tool papers --query "jane" --topic people
 python -m research_tool archive-paper jane-doe_2026-11-21

@@ -128,7 +128,7 @@ def purge_tool_data(settings: Any, *,
                     include_papers: bool = False) -> dict[str, int]:
     """Purge this toolkit's derived data: reports, cache, logs, audit log.
 
-    Finalized papers (``data/papers``) are deliberate deliverables, so they
+    Finalized papers (``papers/``) are deliberate deliverables, so they
     are **excluded by default** and only purged when *include_papers* is
     explicitly true. Even then the rules file and template are preserved.
     """

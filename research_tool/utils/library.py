@@ -1,24 +1,29 @@
 """Finalized research-paper library: layout, naming, index and lookup.
 
-``data/reports/`` holds raw research output (what the engines found).
-``data/papers/`` is the curated library of *finalized* papers. This module
-enforces the organisation rules documented in ``data/papers/ORGANISATION.md``
-so every writer produces the same layout:
+``data/raw/`` holds raw research output (what the engines found). ``papers/``
+is the curated library of *finalized* papers. This module enforces the
+organisation rules documented in ``papers/ORGANISATION.md`` so every writer
+produces the same layout:
 
-    <library>/<topic>/<slug>_<YYYY-MM-DD>[_vN].<ext>
-    <library>/<topic>/<paper_id>.meta.json      # catalogue record
-    <library>/_archive/<topic>/                 # superseded papers
-    <library>/_templates/                       # authoring template
-    <library>/INDEX.md + INDEX.json             # auto-generated catalogue
+    <library>/<topic>/<slug>_<YYYY-MM-DD>[_vN].md|.pdf   # readable documents
+    <library>/_meta/<topic>/<paper_id>.json              # machine-readable copy
+    <library>/_meta/<topic>/<paper_id>.meta.json         # catalogue record
+    <library>/pdfs/<Readable_Title>_<year>.pdf           # reading shelf (mirror)
+    <library>/_archive/<topic>/                          # superseded papers
+    <library>/_templates/                                # authoring template
+    <library>/INDEX.md + INDEX.json                      # auto-generated catalogue
 
-``INDEX.md`` / ``INDEX.json`` are rebuilt from the ``.meta.json`` records and
-must never be hand-edited.
+Splitting documents (``<topic>/``) from machine records (``_meta/<topic>/``)
+keeps the shelves readable at a glance: a human opening ``papers/vietnam/``
+sees papers, not a wall of JSON. ``INDEX.md`` / ``INDEX.json`` are rebuilt from
+the ``.meta.json`` records and must never be hand-edited.
 """
 
 from __future__ import annotations
 
 import json
 import re
+import shutil
 import unicodedata
 from datetime import datetime
 from pathlib import Path
@@ -34,6 +39,8 @@ INDEX_FILE = "INDEX.md"
 INDEX_JSON = "INDEX.json"
 ARCHIVE_DIR = "_archive"
 TEMPLATES_DIR = "_templates"
+META_DIR = "_meta"
+PDF_MIRROR_DIR = "pdfs"
 META_SUFFIX = ".meta.json"
 
 # Default topic ("shelf") for each detected target kind.
@@ -86,6 +93,11 @@ def normalise_formats(formats: Iterable[str] | None) -> list[str]:
     return chosen or ["markdown"]
 
 
+def _rel_posix(root: Path, path: Path) -> str:
+    """Return *path* relative to *root* using POSIX separators."""
+    return path.relative_to(root).as_posix()
+
+
 def load_report_file(path: str | Path) -> tuple[ResearchReport, dict[str, Any]]:
     """Load a saved report JSON produced by ``--format json`` or ``publish``.
 
@@ -116,21 +128,34 @@ class PaperLibrary:
 
     # ---- layout ------------------------------------------------------
     def ensure_layout(self) -> Path:
-        """Create the library root, archive shelf and template folder."""
+        """Create the library root, archive, template and metadata folders."""
         self.root.mkdir(parents=True, exist_ok=True)
         (self.root / ARCHIVE_DIR).mkdir(exist_ok=True)
         (self.root / TEMPLATES_DIR).mkdir(exist_ok=True)
+        (self.root / META_DIR).mkdir(exist_ok=True)
         return self.root
 
     def topic_path(self, topic: str | None = None) -> Path:
-        """Return (and create) the directory for a topic shelf."""
+        """Return (and create) the document directory for a topic shelf."""
         name = slugify(topic) if topic else DEFAULT_TOPIC
         path = self.root / name
         path.mkdir(parents=True, exist_ok=True)
         return path
 
+    def meta_dir(self, topic: str | None = None) -> Path:
+        """Return (and create) the machine-record directory for a shelf."""
+        name = slugify(topic) if topic else DEFAULT_TOPIC
+        path = self.root / META_DIR / name
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def meta_path(self, paper_id: str, topic: str | None = None) -> Path:
+        """Return the catalogue-record path for *paper_id*."""
+        return self.meta_dir(topic) / f"{paper_id}{META_SUFFIX}"
+
     def _unique_id(self, folder: Path, base: str,
-                   archive_folder: Path | None = None) -> str:
+                   archive_folder: Path | None = None,
+                   records_folder: Path | None = None) -> str:
         """Return *base*, or ``base_v2``/``base_v3``… if already taken.
 
         IDs already used by an archived paper stay reserved, so archiving and
@@ -139,6 +164,8 @@ class PaperLibrary:
         """
         exts = (".md", ".pdf", ".json", META_SUFFIX)
         folders = [folder] + ([archive_folder] if archive_folder else [])
+        if records_folder is not None:
+            folders.append(records_folder)
 
         def taken(candidate: str) -> bool:
             return any((f / f"{candidate}{ext}").exists()
@@ -173,17 +200,28 @@ class PaperLibrary:
         shelf = slugify(topic) if topic else TOPIC_BY_KIND.get(
             report.target_kind, DEFAULT_TOPIC)
         folder = self.topic_path(shelf)
+        records_folder = self.meta_dir(shelf)
         stamp = published_at or datetime.utcnow()
         paper_id = self._unique_id(
             folder, f"{slugify(report.target)}_{stamp:%Y-%m-%d}",
-            self.root / ARCHIVE_DIR / shelf)
+            self.root / ARCHIVE_DIR / shelf, records_folder)
         title = (title or f"Research Paper: {report.target}").strip()
         status = (status or self.default_status).lower()
         if status not in {"draft", "final"}:
             raise ValueError("status must be 'draft' or 'final'")
         formats = normalise_formats(formats)
         urls = source_urls(report)
-        files = [f"{shelf}/{paper_id}{PAPER_EXT[fmt]}" for fmt in formats]
+
+        # Readable documents live on the shelf; the machine-readable JSON copy
+        # lives with the catalogue record in _meta/<topic>/ so shelves stay
+        # legible for humans.
+        targets: list[tuple[str, Path]] = []
+        for fmt in formats:
+            dest = ((records_folder if fmt == "json" else folder)
+                    / f"{paper_id}{PAPER_EXT[fmt]}")
+            targets.append((fmt, dest))
+        files = [_rel_posix(self.root, dest) for _fmt, dest in targets]
+
         meta = PaperMeta(
             paper_id=paper_id,
             title=title,
@@ -204,16 +242,18 @@ class PaperLibrary:
             files=files,
         )
         reporter = PaperReporter()
-        for fmt, rel in zip(formats, files):
-            reporter.write(report, meta, self.root / rel,
-                           include_raw=include_raw)
-        (folder / f"{paper_id}{META_SUFFIX}").write_text(
+        for fmt, dest in targets:
+            reporter.write(report, meta, dest, include_raw=include_raw)
+        # The catalogue record sits beside the JSON copy in _meta/<topic>/.
+        meta_path = records_folder / f"{paper_id}{META_SUFFIX}"
+        meta_path.write_text(
             json.dumps(meta.to_dict(), indent=2, ensure_ascii=False),
             encoding="utf-8")
         self.rebuild_index()
         logger.info("[paper-library] published {} ({})", paper_id, shelf)
         return meta
-# ---- reading -----------------------------------------------------
+
+    # ---- reading -----------------------------------------------------
     def records(self, include_archived: bool = True) -> list[PaperMeta]:
         """Load every ``*.meta.json`` catalogue record in the library."""
         found: list[PaperMeta] = []
@@ -258,7 +298,11 @@ class PaperLibrary:
         return records[:limit] if limit else records
 # ---- catalogue ---------------------------------------------------
     def rebuild_index(self) -> Path:
-        """Regenerate ``INDEX.md`` and ``INDEX.json`` from the records."""
+        """Regenerate ``INDEX.md`` and ``INDEX.json`` from the records.
+
+        Also refreshes the ``pdfs/`` reading shelf so every publication-ready
+        PDF is one click away with a human-readable filename.
+        """
         self.ensure_layout()
         records = sorted(self.records(include_archived=True),
                          key=lambda r: (r.created_at, r.paper_id),
@@ -267,6 +311,10 @@ class PaperLibrary:
         archived = [r for r in records if r.status == "archived"]
         now = datetime.utcnow()
 
+        shelves: dict[str, list[PaperMeta]] = {}
+        for record in active:
+            shelves.setdefault(record.topic, []).append(record)
+
         lines = [
             "# Finalized Research Papers — Index",
             "",
@@ -274,11 +322,24 @@ class PaperLibrary:
             "`publish`, `archive-paper` and "
             "`python -m research_tool papers --rebuild-index`.",
             "> Organisation rules: [ORGANISATION.md](ORGANISATION.md) · Raw "
-            "findings remain in `data/reports/`.",
+            "engine output stays in `data/raw/` · Ready-to-read PDFs are "
+            "mirrored in [pdfs/](pdfs/).",
             "",
             f"_Last rebuilt: {now:%Y-%m-%d %H:%M} UTC · "
             f"**{len(active)} active** · **{len(archived)} archived**_",
             "",
+        ]
+        if shelves:
+            lines += ["## Shelves at a glance", "",
+                      "| Shelf | Active papers | Read |",
+                      "|---|---:|---|"]
+            for shelf in sorted(shelves):
+                lines.append(
+                    f"| `{shelf}` | {len(shelves[shelf])} | "
+                    f"[browse]({shelf}/) |")
+            lines += [""]
+
+        lines += [
             "## Active papers",
             "",
         ]
@@ -290,14 +351,16 @@ class PaperLibrary:
             "## Layout",
             "",
             "```",
-            "data/papers/",
+            "papers/",
             "├── INDEX.md / INDEX.json   # this catalogue (auto-generated)",
             "├── ORGANISATION.md         # the organisation rules",
+            "├── pdfs/                   # reading shelf: every PDF, readable names",
+            "├── _meta/<topic>/          # .meta.json records + .json copies",
             "├── _templates/             # authoring template",
             "├── _archive/<topic>/       # superseded papers",
-            "└── <topic>/                # people | organisations | domains | general",
-            "    ├── <slug>_<date>.md|.pdf|.json",
-            "    └── <slug>_<date>.meta.json",
+            "└── <topic>/                # vietnam | gacha | people | domains | ...",
+            "    ├── <slug>_<date>.md    # manuscript (primary)",
+            "    └── <slug>_<date>.pdf   # typeset edition",
             "```",
             "",
         ]
@@ -313,7 +376,37 @@ class PaperLibrary:
         (self.root / INDEX_JSON).write_text(
             json.dumps(payload, indent=2, ensure_ascii=False),
             encoding="utf-8")
+        self.rebuild_pdf_mirror()
         return index_path
+
+    # ---- reading shelf (pdfs/) ---------------------------------------
+    def rebuild_pdf_mirror(self) -> list[Path]:
+        """Mirror every active PDF into ``pdfs/`` with a readable name.
+
+        The canonical files keep their ``<slug>_<date>.pdf`` names inside the
+        topic shelves; this shelf exists so a human can find every finished
+        PDF in one place without knowing a paper ID.
+        """
+        mirror = self.root / PDF_MIRROR_DIR
+        mirror.mkdir(parents=True, exist_ok=True)
+        written: list[Path] = []
+        for record in self.records(include_archived=False):
+            for rel in record.files:
+                if not rel.lower().endswith(".pdf"):
+                    continue
+                src = self.root / rel
+                if not src.is_file():
+                    continue
+                dest = mirror / _pdf_mirror_name(record, taken=written)
+                if (not dest.exists()
+                        or dest.stat().st_size != src.stat().st_size
+                        or dest.read_bytes() != src.read_bytes()):
+                    shutil.copyfile(src, dest)
+                written.append(dest)
+        for stale in mirror.glob("*.pdf"):
+            if stale not in written:
+                stale.unlink(missing_ok=True)
+        return written
 
     # ---- lifecycle ---------------------------------------------------
     def archive(self, paper_id: str) -> PaperMeta:
@@ -330,7 +423,7 @@ class PaperLibrary:
         if record.status == "archived":
             return record
 
-        meta_path = self.root / record.topic / f"{paper_id}{META_SUFFIX}"
+        meta_path = self.meta_path(paper_id, record.topic)
         dest_dir = self.root / ARCHIVE_DIR / record.topic
         dest_dir.mkdir(parents=True, exist_ok=True)
         moved: list[str] = []
@@ -351,6 +444,44 @@ class PaperLibrary:
         self.rebuild_index()
         logger.info("[paper-library] archived {} ({})", paper_id, record.topic)
         return record
+
+
+# Words that make a truncated filename end mid-thought; trimmed after capping.
+_TRAILING_STOPWORDS = {
+    "a", "an", "and", "as", "at", "by", "for", "from", "in", "of", "on", "or",
+    "the", "to", "with", "its", "his", "her",
+}
+
+
+def _pdf_mirror_name(record: PaperMeta, *, taken: Iterable[Path] = ()) -> str:
+    """Return a human-readable mirror filename for *record*'s PDF.
+
+    ``"Export Factories and Controlled Liberalisation: Value Capture..."``
+    published in 2026 becomes
+    ``Export_Factories_and_Controlled_Liberalisation_Value_Capture_2026.pdf`` so
+    the reading shelf is browsable without paper IDs. The stem is capped at a
+    word boundary (never mid-word), possessives are closed up
+    (``Vietnam's`` -> ``Vietnams``) and a dangling connective is trimmed.
+    """
+    text = record.title.replace("'", "").replace("\u2019", "")
+    words = re.sub(r"[^0-9A-Za-z]+", " ", text).split()
+    kept: list[str] = []
+    length = 0
+    for word in words:
+        if kept and length + len(word) + 1 > 62:   # never cut mid-word
+            break
+        kept.append(word)
+        length += len(word) + 1
+    while len(kept) > 3 and kept[-1].lower() in _TRAILING_STOPWORDS:
+        kept.pop()
+    stem = "_".join(kept) or record.paper_id
+    year = f"{record.created_at:%Y}"
+    # Avoid "…_2026_2026.pdf" when the title already ends with the year.
+    name = f"{stem}.pdf" if stem.endswith(year) else f"{stem}_{year}.pdf"
+    existing = {path.name for path in taken}
+    if name in existing:      # same title, same year: fall back to the ID
+        name = f"{stem}_{record.paper_id}.pdf"
+    return name
 
 
 def _md_cell(text: object) -> str:
@@ -394,5 +525,5 @@ def _index_table(records: list[PaperMeta],
 __all__ = [
     "PaperLibrary", "load_report_file", "normalise_formats", "slugify",
     "TOPIC_BY_KIND", "DEFAULT_TOPIC", "INDEX_FILE", "INDEX_JSON",
-    "ARCHIVE_DIR", "TEMPLATES_DIR",
+    "ARCHIVE_DIR", "TEMPLATES_DIR", "META_DIR", "PDF_MIRROR_DIR",
 ]

@@ -5,10 +5,11 @@ toolkit** in Python. It gathers and corroborates public information about
 people, credentials, organizations, domains and web content, then writes
 structured reports (Markdown / PDF / Excel / JSON) with a risk score.
 
-Reports under `data/reports/` capture **what the engines found**. Reviewed,
-curated **research papers** are finalized separately under `data/papers/`,
-with enforced naming/topic rules, per-paper metadata and an auto-generated
-index (see [`data/papers/ORGANISATION.md`](data/papers/ORGANISATION.md)).
+Reports under `data/raw/` capture **what the engines found**. Reviewed,
+curated **research papers** live in the `papers/vietnam/` and
+`papers/gacha/` shelves, with enforced naming/topic rules, per-paper
+metadata and an auto-generated index (see
+[`papers/ORGANISATION.md`](papers/ORGANISATION.md)).
 
 > Using an AI agent? See [`AGENT_USAGE.md`](AGENT_USAGE.md) — a one-file
 > operating guide (commands, flags, target→engine map, output paths, gotchas).
@@ -38,7 +39,7 @@ summary), an **i18n layer** (script/language detection, romanisation,
 translation, query expansion) and **reporters** (Markdown, PDF, Excel, JSON).
 
 A **finalized-paper library** (`publish`, `papers`, `archive-paper`) turns a
-reviewed report into a citable paper under `data/papers/` that is easy to
+reviewed report into a citable paper under `papers/` that is easy to
 find by topic, date, target or tag.
 
 An optional **GitHub publishing** layer (`github connect|host`) commits the
@@ -85,9 +86,9 @@ python -m research_tool full example.com --format markdown
 python -m research_tool full "Jane Doe" --engines search,academic --format pdf
 python -m research_tool full jane@example.com --format excel
 
-# Finalize a reviewed result into the paper library (data/papers/)
+# Finalize a reviewed result into the paper library (papers/)
 python -m research_tool publish "Jane Doe" --engines search,academic --format markdown,pdf
-python -m research_tool publish --from data/reports/report_example.com.json
+python -m research_tool publish --from data/raw/report_example.com.json
 python -m research_tool papers                      # browse the catalogue
 python -m research_tool papers --query "Jane Doe"   # find a paper
 python -m research_tool archive-paper jane-doe_2026-11-21
@@ -103,25 +104,25 @@ python -m research_tool config
 ```
 
 `--format` accepts `markdown` (default), `json`, `excel`, or `pdf`.
-Reports are written to `data/reports/`; finalized papers are written to
-`data/papers/` (see below).
+Reports are written to `data/raw/`; finalized papers are written to
+`papers/<topic>/` (see below).
 
 ## Reports vs. finalized papers
 
 | Output | Written by | Location | Purpose |
 |---|---|---|---|
-| **Report** | `<command> --format ...` | `data/reports/` | raw record of what the engines found (transient, purge-eligible) |
-| **Paper** | `publish` | `data/papers/` | reviewed, citable write-up with sources and confidence (durable deliverable) |
+| **Report** | `<command> --format ...` | `data/raw/` | raw record of what the engines found (transient, purge-eligible) |
+| **Paper** | `publish` | `papers/<topic>/` | reviewed, citable write-up with sources and confidence (durable deliverable) |
 
 The paper library's organisation is enforced in code and documented in
-[`data/papers/ORGANISATION.md`](data/papers/ORGANISATION.md):
+[`papers/ORGANISATION.md`](papers/ORGANISATION.md):
 
 - **Topic shelves** — `people/`, `domains/`, `organisations/`, `general/`, or
   a custom `--topic` for a research programme.
 - **Naming** — `<target-slug>_<YYYY-MM-DD>[_vN].md|.pdf|.json` plus a
   `<paper-id>.meta.json` catalogue record. Re-publishing the same day adds a
   version instead of overwriting.
-- **Index** — `data/papers/INDEX.md` and `INDEX.json` are rebuilt
+- **Index** — `papers/INDEX.md` and `INDEX.json` are rebuilt
   automatically from the records; never hand-edited.
 - **Archive** — `archive-paper` moves superseded papers to
   `_archive/<topic>/` and marks them archived.
@@ -131,7 +132,7 @@ The paper library's organisation is enforced in code and documented in
 ```powershell
 python -m research_tool publish "Jane Doe" --engines search,academic
 python -m research_tool publish "Acme Inc" --format markdown,pdf --tags company
-python -m research_tool publish --from data/reports/report_example.com.json
+python -m research_tool publish --from data/raw/report_example.com.json
 python -m research_tool papers --topic people --query "jane"
 python -m research_tool papers --status draft          # review queue
 python -m research_tool archive-paper jane-doe_2026-11-21
@@ -300,8 +301,9 @@ tool auditable.
 | **Rate limiting** | `ethics.rate_limit_per_minute` | Throttles engine runs so third-party services are not hammered |
 | **Audit trail** | `ethics.audit_log` | Appends a PII-minimised (hashed-target) record of tool actions to `data/audit.log` |
 
-`purge` **keeps** `data/papers/` (finalized deliverables) intact by default;
-pass `--include-papers` to include the paper library in a purge explicitly.
+`purge` targets `data/raw/` and **keeps** the paper shelves
+(`papers/<topic>/`) intact by default; pass `--include-papers` to include
+the paper library in a purge explicitly.
 
 Encryption needs a master key. Generate one and export it (never commit it):
 
@@ -320,11 +322,11 @@ python -m research_tool purge
 python -m research_tool purge --older-than-hours 0 -y   # purge everything now
 ```
 
-Encrypted reports are written as `data/reports/<name>.<ext>.enc`; decrypt
+Encrypted reports are written as `data/raw/<name>.<ext>.enc`; decrypt
 with the same key:
 
 ```powershell
-python -m research_tool decrypt "data/reports/report_x.md.enc" --out report.md
+python -m research_tool decrypt "data/raw/report_x.md.enc" --out report.md
 ```
 
 (The Python equivalent is `research_tool.utils.crypto.decrypt_bytes`.)
@@ -363,8 +365,10 @@ research_tool/
 └── utils/              # Cache, validators, HTTP/proxy helpers
 config.yaml             # Defaults
 agent.md                # Agent behaviour / instructions
-data/reports/           # Raw engine output (written by --format)
-data/papers/            # Finalized-paper library (INDEX.md + ORGANISATION.md)
+papers/                 # Finalized papers: <topic>/ (md+pdf) + _meta/ + pdfs/
+data/raw/               # Raw engine output (transient, purge target)
+data/sources/           # Imported source documents / prior drafts
+data/cache/             # HTTP response cache (sqlite)
 docs/                   # Static site published to GitHub Pages (github host)
 ```
 

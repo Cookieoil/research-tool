@@ -481,9 +481,9 @@ def publish(
         help="Append the raw-findings appendix (default: papers.include_raw)"),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ) -> None:
-    """Finalize research into the paper library (data/papers/).
+    """Finalize research into the paper library (papers/).
 
-    Reports in data/reports/ only hold the information the engines found.
+    Reports in data/raw/ only hold the information the engines found.
     A finalized paper is the curated, citable write-up: it follows the
     library's naming/topic rules and is registered in the paper index.
     """
@@ -663,7 +663,7 @@ def purge(
 ) -> None:
     """Securely delete this toolkit's cache, reports, logs and audit log.
 
-    Finalized papers in data/papers/ are kept unless --include-papers is
+    Finalized papers in papers/ are kept unless --include-papers is
     given explicitly.
     """
     settings = get_settings()
@@ -839,9 +839,9 @@ def host(
     everything: bool = typer.Option(False, "--all",
                                      help="Host reports and papers together"),
     reports: Optional[bool] = typer.Option(
-        None, "--reports/--no-reports", help="Include data/reports/ output"),
+        None, "--reports/--no-reports", help="Include data/raw/ output"),
     papers: Optional[bool] = typer.Option(
-        None, "--papers/--no-papers", help="Include data/papers/ (finalized)"),
+        None, "--papers/--no-papers", help="Include papers/ (finalized)"),
     limit: Optional[int] = typer.Option(None, help="Max items per kind"),
     message: Optional[str] = typer.Option(None, "-m", "--message",
                                           help="Commit message"),

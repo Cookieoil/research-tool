@@ -1,0 +1,3 @@
+Raw engine output (report_*.json, report_*.pdf, report_*.md) is written here by
+any command that takes ``--format``. It is transient: ``purge`` targets this
+folder. Reviewed write-ups are published to ``papers/`` instead.

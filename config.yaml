@@ -8,8 +8,9 @@ app:
   name: "Credential Research Toolkit"
   version: "1.4.0"
   data_dir: "data"
-  reports_dir: "data/reports"      # raw findings / engine output
-  papers_dir: "data/papers"        # finalized research papers (curated)
+  reports_dir: "data/raw"          # raw findings / engine output (transient)
+  papers_dir: "papers"             # finalized research papers (curated; human-facing)
+  sources_dir: "data/sources"      # imported source documents / prior drafts
   cache_dir: "data/cache"
 
 # --- HTTP behaviour ---
@@ -153,9 +154,9 @@ reporting:
   # RESEARCH_ENCRYPTION_KEY to be set.
   encrypt: false
 
-# --- Finalized-paper library (data/papers) ---
-# Reports in data/reports/ hold what the engines found. Finalized papers go
-# to data/papers/ following the rules in data/papers/ORGANISATION.md.
+# --- Finalized-paper library (papers/) ---
+# Reports in data/raw/ hold what the engines found. Finalized papers go to
+# papers/ following the rules in papers/ORGANISATION.md.
 papers:
   author: "None-Bias Research Agent"
   default_status: "final"      # draft | final (used when --status is omitted)
@@ -175,8 +176,8 @@ github:
   token: null                # env: RESEARCH_GITHUB_TOKEN (never commit a token)
   remote: "origin"           # git remote name to create/update
   site_dir: "docs"           # folder served by GitHub Pages
-  host_reports: true         # include data/reports/ in a bare `github host`
-  host_papers: true          # include data/papers/ in a bare `github host`
+  host_reports: true         # include data/raw/ in a bare `github host`
+  host_papers: true          # include papers/ in a bare `github host`
   pages: true                # enable/refresh GitHub Pages when hosting
   visibility: "public"       # public | private (only used when creating repo)
   description: "OSINT & credential-verification research reports (Credential Research Toolkit)"

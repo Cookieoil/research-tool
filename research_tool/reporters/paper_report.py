@@ -1,10 +1,10 @@
 """Finalized research-paper writer (Markdown / PDF / JSON).
 
-A *report* (``data/reports/``) records the raw information the engines found.
-A *paper* (``data/papers/``) is the curated, citable write-up: abstract,
+A *report* (``data/raw/``) records the raw information the engines found.
+A *paper* (``papers/``) is the curated, citable write-up: abstract,
 methodology, findings grouped by category, risk assessment, source register,
 limitations and provenance. Papers follow the library rules in
-``data/papers/ORGANISATION.md``.
+``papers/ORGANISATION.md``.
 """
 
 from __future__ import annotations
@@ -105,226 +105,138 @@ class PaperReporter:
     def render_markdown(self, report: ResearchReport,
                         meta: PaperMeta,
                         include_raw: bool = False) -> str:
+        """Render the paper as a research-paper manuscript (Markdown).
+
+        Structure: title, a one-line document record, keywords, abstract,
+        numbered sections, one prose paragraph per finding
+        (`**F1 - claim.** detail *(confidence)* [n]`), an interpretation note,
+        limitations, an optional raw appendix and a numbered reference list.
+        CLI scaffolding (a document-control table, `engine=` debug strings,
+        `Recorded data` fences, a "Risk score: 0/100" section) is deliberately
+        not emitted: the manuscript must read as a research paper.
+        """
         urls = source_urls(report)
-        src_index = {url: i for i, url in enumerate(urls, 1)}
-        used_by: dict[str, list[str]] = {url: [] for url in urls}
+        source_number = {url: index for index, url in enumerate(urls, 1)}
 
         grouped: dict[str, list[tuple[int, Finding]]] = {}
-        for i, finding in enumerate(report.findings, 1):
+        for index, finding in enumerate(report.findings, 1):
             grouped.setdefault(finding.category or "uncategorised", []).append(
-                (i, finding))
-            if finding.url in used_by:
-                used_by[finding.url].append(f"F{i}")
+                (index, finding))
 
         status_label = meta.status.upper()
-        kind_label = ("FINALIZED RESEARCH PAPER" if meta.status == "final"
-                      else "RESEARCH PAPER (DRAFT)")
+        document_line = (
+            f"*Finalized research paper · Paper ID `{meta.paper_id}` · "
+            f"Status {status_label} · Topic `{meta.topic}`*")
         abstract = meta.abstract or _default_abstract(report)
 
-        lines: list[str] = [
-            f"# {meta.title}",
-            "",
-            f"> **{kind_label}** · Paper ID `{meta.paper_id}` · "
-            f"Status **{status_label}** · Topic shelf `{meta.topic}`",
-            "",
-            "| Document control | Value |",
-            "|---|---|",
-            f"| Target | `{_cell(report.target)}` |",
-            f"| Target kind | {report.target_kind} |",
-            f"| Topic shelf | `{meta.topic}` |",
-            f"| Status | {status_label} |",
-            f"| Author / analyst | {_cell(meta.author)} |",
-            f"| Published (UTC) | {meta.created_at:%Y-%m-%d %H:%M} |",
-            f"| Engines run | {', '.join(meta.engines) or 'none'} |",
-            f"| Findings | {meta.findings} |",
-            f"| Sources cited | {meta.sources} |",
-            f"| Risk score | {meta.risk_score}/100 ({meta.risk_label}) |",
-            f"| Tags | {', '.join(meta.tags) or '—'} |",
-            f"| Library file(s) | "
-            f"{', '.join(f'`{f}`' for f in meta.files) or '—'} |",
-            "",
-            "## Abstract",
-            "",
-            abstract,
-            "",
-        ]
+        lines: list[str] = [f"# {meta.title}", "", document_line, ""]
+        if meta.tags:
+            lines += [f"**Keywords:** {', '.join(meta.tags)}", ""]
+        lines += ["## Abstract", "", abstract, ""]
 
+        lines += ["## 1. Scope and method", ""]
         methodology = _meta_text(report, META_METHODOLOGY)
-        lines += ["## 1. Scope and methodology", ""]
         if methodology:
             lines += [methodology, ""]
         else:
             lines += [
                 f"This paper consolidates the findings recorded for "
-                f"**{report.target}** (target kind: `{report.target_kind}`) by the "
-                f"Credential Research Toolkit. "
+                f"**{report.target}** (target kind: `{report.target_kind}`) by "
+                f"the Credential Research Toolkit. "
                 f"{len(report.engines_run)} engine(s) ran: "
-                f"{', '.join(f'`{e}`' for e in report.engines_run) or 'none'}. "
+                f"{', '.join(f'`{engine}`' for engine in report.engines_run) or 'none'}. "
                 f"{len(report.findings)} finding(s) were normalised from public "
-                f"sources and scored.",
-                "",
-                "Every finding carries a 0–1 confidence value. A statement is "
-                "described as *corroborated by public sources* only where a "
-                "source is listed; it is *verified* only where an authoritative "
-                "registry is cited. Engine output is reproduced without "
-                "embellishment.",
-                "",
-            ]
-
+                f"sources, scored and grouped by category below.", "",
+                "Every finding carries a 0-1 confidence value, reproduced "
+                "below. A statement is described as *corroborated by public "
+                "sources* where a source is listed, and as *verified* only "
+                "where an authoritative registry is cited.", ""]
         if report.errors:
-            lines += ["**Collection notes (engine errors during the run):**", ""]
-            lines += [f"- {err}" for err in report.errors]
+            lines += ["**Collection notes (source errors during the run):**", ""]
+            lines += [f"- {error}" for error in report.errors]
             lines += [""]
 
+        section = 1
         lines += ["## 2. Findings", ""]
         if not grouped:
             lines += ["_No findings were recorded._", ""]
         else:
             lines += [
-                f"The {len(report.findings)} finding(s) are grouped by "
-                f"category below. `F#` is the finding identifier and `S#` "
-                f"refers to the source register in §4.",
-                "",
-            ]
-            section = 0
+                f"The {len(report.findings)} finding(s) are grouped by theme. "
+                f"`F#` identifies the finding in the machine-readable JSON "
+                f"record, and each trailing number points at the reference "
+                f"list at the end of the paper.", ""]
             for category, items in grouped.items():
                 section += 1
-                lines += [
-                    f"### 2.{section} {category.replace('_', ' ').title()} "
-                    f"({len(items)})",
-                    "",
-                    "| ID | Finding | Engine | Confidence | Source |",
-                    "|---|---|---|---:|---|",
-                ]
+                lines += [f"### 2.{section - 1} "
+                          f"{category.replace('_', ' ').title()} "
+                          f"({len(items)})", ""]
                 for number, finding in items:
-                    source = (f"S{src_index[finding.url]}"
-                              if finding.url in src_index else "—")
-                    lines.append(
-                        f"| F{number} | {_cell(finding.title)} | "
-                        f"`{finding.engine}` | {finding.confidence:.2f} "
-                        f"({_confidence_label(finding.confidence)}) | "
-                        f"{source} |")
-                lines.append("")
-                lines += self._markdown_details(items)
+                    citation = (f" [{source_number[finding.url]}]"
+                                if finding.url in source_number else "")
+                    confidence = _confidence_label(finding.confidence)
+                    detail = _cell(finding.detail) if finding.detail else ""
+                    lines += [
+                        f"**F{number} — {_cell(finding.title)}.** {detail}"
+                        f" *({confidence} confidence)*{citation}".replace(
+                            "  ", " ").strip(), ""]
 
-        risk_note = _meta_text(report, META_RISK) or _risk_explanation(report)
-        lines += [
-            "## 3. Risk assessment",
-            "",
-            f"**Risk score: {report.risk_score}/100 "
-            f"({RiskScorer.label(report.risk_score)}).** {risk_note}",
-            "",
-        ]
-        by_engine: dict[str, int] = {}
-        for finding in report.findings:
-            by_engine[finding.engine] = by_engine.get(finding.engine, 0) + 1
-        if by_engine:
+
+        risk_note = _meta_text(report, META_RISK)
+        label = RiskScorer.label(report.risk_score)
+        section += 1
+        lines += [f"## {section}. Interpretation and confidence", ""]
+        if risk_note:
+            lines += [risk_note, ""]
+        elif report.risk_score == 0 and report.target_kind not in (
+                "name", "email", "username"):
             lines += [
-                "Findings by engine: "
-                + ", ".join(f"`{name}` ({count})"
-                            for name, count in by_engine.items())
-                + ".",
-                "",
-            ]
-
-        lines += ["## 4. Source register", ""]
-        if urls:
-            lines += ["| ID | Source | Used by |", "|---|---|---|"]
-            for url in urls:
-                lines.append(
-                    f"| S{src_index[url]} | <{url}> | "
-                    f"{', '.join(used_by[url]) or '—'} |")
-            lines.append("")
+                "No adverse-signal assessment of an individual or organisation "
+                "is in scope for this paper, so the toolkit's 0-100 score has "
+                "no subject to grade. The findings above are descriptive and "
+                "carry the confidence reported with each one.", ""]
         else:
-            lines += ["_No source URLs were recorded with the findings._", ""]
+            lines += [f"The recorded risk score is {report.risk_score}/100 "
+                      f"({label}). {_risk_explanation(report)}", ""]
 
         custom_limitations = _meta_list(report, META_LIMITATIONS)
-        lines += ["## 5. Limitations and confidence", ""]
+        lines += [f"## {section + 1}. Limitations", ""]
         if custom_limitations:
             lines += [f"- {item}" for item in custom_limitations]
-            lines += [
-                "- Absence of a finding is not proof of absence; sources "
-                "that were skipped or blocked are noted in the findings.",
-                "- Public data changes. Re-verify sources before relying on "
-                "a paper that is no longer current.",
-                "- Non-English source material is translated into English; "
-                "original wording is kept only as a clearly marked secondary "
-                "reference.",
-            ]
         else:
             lines += [
                 "- Findings are drawn from public sources and carry only the "
-                "confidence reported by each engine.",
+                "confidence reported with each one.",
                 "- A credential is *corroborated by public sources*; it is not "
                 "*verified* unless an authoritative registry is cited.",
                 "- Name matches (including sanctions screening) are leads for "
-                "review, not proof of identity.",
-                "- Absence of a finding is not proof of absence; engines that "
-                "were skipped or blocked are noted in the findings.",
-                "- Public data changes. Re-run the engines before relying on a "
-                "paper that is no longer current.",
-                "- Non-English source material is translated into English; "
-                "original wording is kept only as a clearly marked secondary "
-                "reference.",
-            ]
+                "review, not proof of identity."]
+        lines += [
+            "- Absence of a finding is not proof of absence; sources that "
+            "were skipped or blocked are noted above.",
+            "- Public data changes; re-run the engines before relying on a "
+            "paper that is no longer current.",
+            "- Non-English source material is translated into English; "
+            "original wording is kept only as a marked secondary reference.",
+            ""]
         if report.errors:
-            lines.append(f"- {len(report.errors)} engine error(s) occurred "
-                         "during collection (listed in §1).")
-        lines += [""]
+            lines.append(f"- {len(report.errors)} source error(s) occurred "
+                         "during collection (listed in section 1).")
+            lines.append("")
 
         if include_raw:
-            lines += [
-                "## Appendix A — raw findings",
-                "",
-                "```json",
-                json.dumps(report.to_dict(), indent=2, ensure_ascii=False),
-                "```",
-                "",
-            ]
+            lines += ["## Appendix A — raw findings", "", "```json",
+                      json.dumps(report.to_dict(), indent=2,
+                                 ensure_ascii=False), "```", ""]
 
-        lines += [
-            "## 6. Provenance",
-            "",
-            f"- **Paper ID:** `{meta.paper_id}`",
-            f"- **Status:** {status_label}",
-            f"- **Report generated (UTC):** "
-            f"{report.generated_at:%Y-%m-%d %H:%M}",
-            "- **Raw report:** "
-            + (f"`{meta.source_report}`" if meta.source_report
-               else "not linked (engines were run for this paper)"),
-            "- **Library rules:** `data/papers/ORGANISATION.md`",
-            "- **Library index:** `data/papers/INDEX.md`",
-            "",
-        ]
+        lines += ["## References", ""]
+        if urls:
+            lines += [f"[{index}] {url}"
+                      for index, url in enumerate(urls, 1)]
+        else:
+            lines += ["_No source URLs were recorded with the findings._"]
+        lines.append("")
         return "\n".join(lines)
-
-    @staticmethod
-    def _markdown_details(items: list[tuple[int, Finding]]) -> list[str]:
-        """Render the narrative/detail block for one category's findings."""
-        lines: list[str] = []
-        for number, finding in items:
-            if not (finding.detail or finding.data):
-                continue
-            lines.append(f"**F{number} — {finding.title}**")
-            lines.append("")
-            lines.append(
-                f"- *Engine:* `{finding.engine}` · *category:* "
-                f"`{finding.category}` · *confidence:* "
-                f"{finding.confidence:.2f} "
-                f"({_confidence_label(finding.confidence)})")
-            if finding.url:
-                lines.append(f"- *Source:* <{finding.url}>")
-            if finding.detail:
-                lines.append(f"- *Detail:* {finding.detail}")
-            if finding.data:
-                lines.append("- *Recorded data:*")
-                lines.append("")
-                lines.append("```json")
-                lines.append(json.dumps(finding.data, indent=2,
-                                        ensure_ascii=False, default=str))
-                lines.append("```")
-            lines.append("")
-        return lines
 
     def render_json(self, report: ResearchReport, meta: PaperMeta,
                     include_raw: bool = False) -> bytes:
@@ -338,150 +250,17 @@ class PaperReporter:
 
     def render_pdf(self, report: ResearchReport, meta: PaperMeta,
                    include_raw: bool = False) -> bytes:
-        from io import BytesIO
+        """Typeset the paper as a publication-grade PDF.
 
-        try:
-            from reportlab.lib.pagesizes import A4
-            from reportlab.lib.styles import getSampleStyleSheet
-            from reportlab.lib.units import cm
-            from reportlab.platypus import (Paragraph, SimpleDocTemplate,
-                                            Spacer)
-        except ImportError as exc:  # pragma: no cover
-            raise RuntimeError(
-                "reportlab is required for PDF output: pip install reportlab"
-            ) from exc
+        The Markdown manuscript is rendered first, then passed through the
+        academic typesetting engine (title block, justified serif body,
+        booktabs tables, running header/footer, formal references). Every
+        output format therefore stays consistent with one Markdown source.
+        """
+        from .academic_pdf import render_paper_pdf
 
-        styles = getSampleStyleSheet()
-        buf = BytesIO()
-        doc = SimpleDocTemplate(buf, pagesize=A4,
-                                leftMargin=2 * cm, rightMargin=2 * cm,
-                                topMargin=2 * cm, bottomMargin=2 * cm)
-        status_label = meta.status.upper()
-        kind_label = ("FINALIZED RESEARCH PAPER" if meta.status == "final"
-                      else "RESEARCH PAPER (DRAFT)")
-        abstract = meta.abstract or _default_abstract(report)
-        methodology = _meta_text(report, META_METHODOLOGY) or (
-            f"This paper consolidates {len(report.findings)} "
-            f"finding(s) recorded for {report.target} by "
-            f"{len(report.engines_run)} engine(s): "
-            f"{', '.join(report.engines_run) or 'none'}. Every finding "
-            "carries a 0-1 confidence value; statements are corroborated "
-            "by public sources where a source is listed, and verified only "
-            "where an authoritative registry is cited.")
-        risk_note = _meta_text(report, META_RISK) or _risk_explanation(report)
-        limitations_text = (
-            " ".join(_meta_list(report, META_LIMITATIONS))
-            or "Findings are drawn from public sources and carry only the "
-               "engine-reported confidence. Credentials are corroborated by "
-               "public sources, not verified, unless a registry is cited. "
-               "Name matches are leads, not identity proof. Absence of a "
-               "finding is not proof of absence. Public data changes; re-run "
-               "the engines before relying on a paper that is no longer "
-               "current."
-        )
-
-        story = [
-            Paragraph(_esc(meta.title), styles["Title"]),
-            Spacer(1, 0.3 * cm),
-            Paragraph(
-                f"{kind_label} &nbsp;|&nbsp; Paper ID "
-                f"{_esc(meta.paper_id)} &nbsp;|&nbsp; Status {status_label} "
-                f"&nbsp;|&nbsp; Topic {_esc(meta.topic)}",
-                styles["Italic"],
-            ),
-            Spacer(1, 0.4 * cm),
-            Paragraph(
-                f"Target: {_esc(report.target)} ({_esc(report.target_kind)}) "
-                f"&nbsp;|&nbsp; Author: {_esc(meta.author)}",
-                styles["Normal"],
-            ),
-            Paragraph(
-                f"Published: {meta.created_at:%Y-%m-%d %H:%M} UTC "
-                f"&nbsp;|&nbsp; Engines: "
-                f"{_esc(', '.join(meta.engines) or 'none')}",
-                styles["Normal"],
-            ),
-            Paragraph(
-                f"Findings: {meta.findings} &nbsp;|&nbsp; Sources: "
-                f"{meta.sources} &nbsp;|&nbsp; Risk: {meta.risk_score}/100 "
-                f"({meta.risk_label})",
-                styles["Normal"],
-            ),
-            Spacer(1, 0.5 * cm),
-            Paragraph("Abstract", styles["Heading1"]),
-            Paragraph(_esc(abstract), styles["BodyText"]),
-            Spacer(1, 0.4 * cm),
-            Paragraph("1. Scope and methodology", styles["Heading1"]),
-            Paragraph(_esc(methodology), styles["BodyText"]),
-            Spacer(1, 0.4 * cm),
-            Paragraph("2. Findings", styles["Heading1"]),
-        ]
-
-        if not report.findings:
-            story.append(Paragraph("No findings were recorded.",
-                                   styles["BodyText"]))
-        for i, finding in enumerate(report.findings, 1):
-            story.append(Paragraph(
-                f"F{i}. {_esc(finding.title)}", styles["Heading3"]))
-            story.append(Paragraph(
-                _esc(f"engine={finding.engine} | category={finding.category} "
-                     f"| confidence={finding.confidence:.2f} "
-                     f"({_confidence_label(finding.confidence)})"),
-                styles["Italic"],
-            ))
-            if finding.detail:
-                story.append(Paragraph(_esc(finding.detail),
-                                       styles["BodyText"]))
-            if finding.url:
-                story.append(Paragraph(_esc(finding.url), styles["BodyText"]))
-            story.append(Spacer(1, 0.25 * cm))
-
-        story += [
-            Paragraph("3. Risk assessment", styles["Heading1"]),
-            Paragraph(
-                _esc(f"Risk score: {report.risk_score}/100 "
-                     f"({RiskScorer.label(report.risk_score)}). "
-                     f"{risk_note}"),
-                styles["BodyText"],
-            ),
-            Spacer(1, 0.4 * cm),
-            Paragraph("4. Source register", styles["Heading1"]),
-        ]
-        urls = source_urls(report)
-        if urls:
-            for i, url in enumerate(urls, 1):
-                story.append(Paragraph(f"S{i}. {_esc(url)}",
-                                       styles["BodyText"]))
-        else:
-            story.append(Paragraph("No source URLs were recorded.",
-                                   styles["BodyText"]))
-        story += [
-            Spacer(1, 0.4 * cm),
-            Paragraph("5. Limitations and confidence", styles["Heading1"]),
-            Paragraph(_esc(limitations_text), styles["BodyText"]),
-            Spacer(1, 0.4 * cm),
-        ]
-        if include_raw:
-            story.append(Paragraph("Appendix A — raw findings",
-                                   styles["Heading1"]))
-            raw_json = json.dumps(report.to_dict(), indent=2,
-                                  ensure_ascii=False, default=str)
-            for chunk in _split_for_pdf(raw_json):
-                story.append(Paragraph(_esc(chunk).replace("\n", "<br/>"),
-                                       styles["BodyText"]))
-            story.append(Spacer(1, 0.4 * cm))
-        story += [
-            Paragraph("6. Provenance", styles["Heading1"]),
-            Paragraph(
-                _esc(f"Paper ID: {meta.paper_id} | Status: {status_label} | "
-                     f"Report generated: {report.generated_at:%Y-%m-%d %H:%M} "
-                     f"| Raw report: {meta.source_report or 'not linked'}"),
-                styles["BodyText"],
-            ),
-        ]
-
-        doc.build(story)
-        return buf.getvalue()
+        markdown = self.render_markdown(report, meta, include_raw=include_raw)
+        return render_paper_pdf(markdown, meta)
 
     def render_bytes(self, report: ResearchReport, meta: PaperMeta,
                      fmt: str = "markdown",
@@ -506,21 +285,6 @@ class PaperReporter:
         path.write_bytes(self.render_bytes(report, meta, fmt,
                                            include_raw=include_raw))
         return path
-
-
-def _esc(text: str) -> str:
-    """Escape minimal XML entities for reportlab paragraphs."""
-    return (
-        str(text)
-        .replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-    )
-
-
-def _split_for_pdf(text: str, size: int = 3500) -> list[str]:
-    """Split long text so reportlab never receives an over-sized paragraph."""
-    return [text[i:i + size] for i in range(0, len(text), size)] or [""]
 
 
 __all__ = ["PaperReporter", "source_urls"]

@@ -512,17 +512,73 @@ def test_host_skips_when_nothing_to_publish() -> None:
 # ---------------------------------------------------------------------------
 # CLI wiring
 # ---------------------------------------------------------------------------
+def test_markdown_to_html_renders_chart_fences() -> None:
+    """Chart fences become tables (shaded for heatmaps), never raw syntax."""
+    md = ("```chart-heatmap\n"
+          "title: Motive intensity\n"
+          "caption: Figure 1. Who wants what [1].\n"
+          "| Actor | Security |\n| Party | 3 |\n| Industry | 0 |\n```\n\n"
+          "```chart-stats\n| $817M | Market |\n| 58.5M | Players |\n```\n")
+    html = markdown_to_html(md)
+    assert html.count("<table>") == 2
+    assert "background:#" in html                  # heat shading applied
+    assert 'class="legend"' in html                # caption styled
+    assert "$817M" in html                         # KPI row kept as data
+    assert "chart-heatmap" not in html and "chart-stats" not in html
+    assert "| Party |" not in html
+
+
+def test_collect_papers_reads_meta_shelf_and_skips_machine_folders() -> None:
+    """Catalogue records live in _meta/<shelf>/, and pdfs/ is not a shelf."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _seed_output(root)
+        library = root / "data" / "papers"
+        shelf = library / "people"
+        record = shelf / "jane-doe_2026-11-21.meta.json"
+        meta_dir = library / "_meta" / "people"
+        meta_dir.mkdir(parents=True, exist_ok=True)
+        record.replace(meta_dir / record.name)      # new layout
+        mirror = library / "pdfs"
+        mirror.mkdir(parents=True, exist_ok=True)
+        (mirror / "Jane_Doe_2026.pdf").write_bytes(b"%PDF-1.4 mirror")
+
+        papers = ReportHost(_settings(root)).collect(reports=False, papers=True)
+        assert [p.rel for p in papers] == \
+            ["papers/people/jane-doe_2026-11-21.md"]
+        assert papers[0].entry["findings"] == 4
+        assert papers[0].entry["topic"] == "people"
+
+
+def test_build_site_prunes_stale_pages() -> None:
+    """A site rebuild must remove pages for papers no longer in the library."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        _seed_output(root)
+        settings = _settings(root)
+        host = ReportHost(settings)
+        host.build_site()
+        site = settings.site_path
+        stale = site / "papers" / "people" / "removed-paper_2026-11-20.md"
+        stale.parent.mkdir(parents=True, exist_ok=True)
+        stale.write_text("# old paper\n", encoding="utf-8")
+        host.build_site()                    # rebuild prunes it
+        assert not stale.exists()
+        assert (site / "papers" / "people" / "jane-doe_2026-11-21.md").exists()
+
+
 def test_cli_exposes_github_commands() -> None:
     from typer.testing import CliRunner
 
     from research_tool import cli as cli_mod
 
     runner = CliRunner()
-    result = runner.invoke(cli_mod.app, ["github", "--help"])
+    env = {"COLUMNS": "200", "LINES": "60"}   # keep Rich from truncating help
+    result = runner.invoke(cli_mod.app, ["github", "--help"], env=env)
     assert result.exit_code == 0, result.output
     for command in ("status", "connect", "host"):
         assert command in result.output
-    helped = runner.invoke(cli_mod.app, ["github", "host", "--help"])
+    helped = runner.invoke(cli_mod.app, ["github", "host", "--help"], env=env)
     assert helped.exit_code == 0
     assert "dry-run" in helped.output
 
