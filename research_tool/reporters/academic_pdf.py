@@ -110,6 +110,15 @@ def register_fonts() -> FontSet:
                 candidate = directory / name
                 if candidate.is_file():
                     return candidate
+                # Linux/macOS keep fonts in sub-directories
+                # (e.g. /usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf),
+                # so fall back to a recursive search before giving up.
+                try:
+                    for nested in directory.rglob(name):
+                        if nested.is_file():
+                            return nested
+                except OSError:                       # unreadable directory
+                    continue
         return None
 
     def register(family: str, files: Sequence[str]) -> str | None:
